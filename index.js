@@ -1141,6 +1141,7 @@ document.getElementById('opp-back-x').addEventListener('click', () => {
 function showModeSelect() {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  renderProfile();
   document.getElementById('mode-select').classList.remove('hidden');
 }
 let lastMode = 'fast';
@@ -1251,15 +1252,17 @@ function setAvatar(el) {
   else { el.style.backgroundImage = ''; el.textContent = (tgUser && tgUser.first_name ? tgUser.first_name[0] : 'И').toUpperCase(); }
 }
 
-// окно профиля на экране выбора соперника
+// окна профиля (экраны выбора соперника и режима)
 function renderProfile() {
   const ri = rankInfo(getXP());
-  const nameEl = document.getElementById('pf-name'); if (nameEl) nameEl.textContent = pfDisplayName();
-  setAvatar(document.getElementById('pf-avatar'));
-  styleFrame(document.getElementById('pf-frame'), ri);
-  const rk = document.getElementById('pf-rank'); if (rk) { rk.textContent = ri.name; rk.style.color = ri.c1; }
-  const fill = document.getElementById('pf-xp-fill');
-  if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
+  document.querySelectorAll('.pf-window').forEach(win => {
+    const nameEl = win.querySelector('.pf-name'); if (nameEl) nameEl.textContent = pfDisplayName();
+    setAvatar(win.querySelector('.pf-avatar'));
+    styleFrame(win.querySelector('.pf-frame'), ri);
+    const rk = win.querySelector('.pf-rank'); if (rk) { rk.textContent = ri.name; rk.style.color = ri.c1; }
+    const fill = win.querySelector('.pf-xp-fill');
+    if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
+  });
 }
 
 // ---- оверлей конца раунда ----
@@ -1269,6 +1272,28 @@ function applyOverlayRank(ri) {
   const fill = document.getElementById('ov-xp-fill');
   if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
 }
+function rankParticles(ri, big) {
+  const host = document.getElementById('ov-xp');
+  if (!host) return;
+  const palette = big
+    ? ['#ff5d8f', '#ffbf4d', '#4fcac4', '#6c80f5', ri.c1, ri.c2]
+    : [ri.c1, ri.c2, '#ffffff'];
+  const n = big ? 28 : 15;
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement('div');
+    s.className = 'rank-spark';
+    const ang = Math.random() * Math.PI * 2;
+    const dist = (big ? 95 : 60) + Math.random() * (big ? 95 : 55);
+    s.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+    s.style.setProperty('--dy', (Math.sin(ang) * dist).toFixed(1) + 'px');
+    s.style.background = palette[i % palette.length];
+    const sz = 6 + Math.random() * 6;
+    s.style.width = sz + 'px'; s.style.height = sz + 'px';
+    s.style.animationDuration = (0.85 + Math.random() * 0.7) + 's';
+    host.appendChild(s);
+    setTimeout(() => { if (s.parentNode) s.remove(); }, 1700);
+  }
+}
 function popRankUp(ri, catChanged) {
   const ru = document.getElementById('ov-rankup');
   ru.textContent = catChanged ? ('Новая лига — ' + ri.catName + '!') : 'Повышение ранга!';
@@ -1276,6 +1301,7 @@ function popRankUp(ri, catChanged) {
   ru.classList.remove('show'); void ru.offsetWidth; ru.classList.add('show');
   const frame = document.getElementById('ov-frame');
   frame.classList.remove('flash'); void frame.offsetWidth; frame.classList.add('flash');
+  rankParticles(ri, catChanged);
   if (catChanged) {
     const burst = document.getElementById('ov-cat-burst');
     burst.style.background = 'radial-gradient(circle,' + hexA(ri.c1, 0.5) + ', transparent 70%)';
@@ -1289,13 +1315,14 @@ function animateXpGain(before, gained) {
   gainEl.classList.add('show');
   if (gained <= 0) { applyOverlayRank(rankInfo(before)); return; }
   const target = before + gained;
-  const dur = Math.min(2800, 1100 + gained * 1.0);
+  const dur = Math.min(4200, 1700 + gained * 1.4);
   const start = performance.now();
   let lastIndex = rankInfo(before).index;
   let lastCat = rankInfo(before).cat;
   function frame(now) {
     const t = Math.min(1, (now - start) / dur);
-    const eased = 1 - Math.pow(1 - t, 3);
+    // easeInOutCubic — мягкий старт и финиш
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     const val = before + (target - before) * eased;
     const ri = rankInfo(val);
     if (ri.index !== lastIndex) {
@@ -1326,10 +1353,10 @@ function showResultOverlay(win, before, gained) {
   document.getElementById('ov-xp-gain').textContent = '';
   document.getElementById('ov-xp-gain').classList.remove('show');
   overlay.classList.remove('hidden');
-  setTimeout(() => overlay.classList.add('settled'), 1100);
-  setTimeout(() => ovxp.classList.add('show'), 1450);
-  setTimeout(() => animateXpGain(before, gained), 1750);
-  setTimeout(() => overlay.classList.add('act-show'), 2050);
+  setTimeout(() => overlay.classList.add('settled'), 1300);
+  setTimeout(() => ovxp.classList.add('show'), 1750);
+  setTimeout(() => animateXpGain(before, gained), 2150);
+  setTimeout(() => overlay.classList.add('act-show'), 2650);
 }
 
 renderProfile();
