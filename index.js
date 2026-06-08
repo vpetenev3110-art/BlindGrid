@@ -8,6 +8,15 @@ if (tg) {
   if (typeof tg.disableVerticalSwipes === 'function') tg.disableVerticalSwipes();
 }
 
+// ===== Предохранитель: ни одна непредвиденная ошибка не должна ронять игру =====
+window.addEventListener('error', function (e) {
+  try { console.error('[BLINDGRID] перехвачена ошибка:', (e && (e.error || e.message)) || e); } catch (_) {}
+});
+window.addEventListener('unhandledrejection', function (e) {
+  try { console.error('[BLINDGRID] перехвачен промис:', e && e.reason); } catch (_) {}
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+});
+
 // частицы — в форме фигур из морского боя (блоки 1-3 клетки), мягкие, размытые
 // единый набор частиц: считаем позиции один раз и рисуем идентично во всех слоях
 const PARTICLE_GRADS = [
@@ -727,7 +736,7 @@ function onEnemyCellClick(r, c) {
   if (cell.shipId !== null) {
     const ship = state.enemy.ships[cell.shipId];
     ship.hits++;
-    el.classList.add('hit');
+    if (el) el.classList.add('hit');
     // КОМБО: попадание увеличивает
     state.combo = (state.combo || 0) + 1;
     state.missStreak = 0;
@@ -745,7 +754,7 @@ function onEnemyCellClick(r, c) {
       }, 450);
     }
   } else {
-    el.classList.add('miss');
+    if (el) el.classList.add('miss');
     // КОМБО: первый промах не сбивает, но тускнеет; второй подряд — сброс
     state.missStreak = (state.missStreak || 0) + 1;
     if (state.missStreak >= 2) {
@@ -932,8 +941,14 @@ function spawnRipple(cellEl, color) {
 }
 
 function aiTurn() {
-  if (!state || state.over) return;
+  if (!state || state.over || state.turn !== 'enemy') return;
   const target = pickAITarget();
+  if (!target) {
+    // свободных клеток нет — безопасно вернуть ход игроку, не падаем
+    state.turn = 'player'; setTurnArrow('player');
+    document.getElementById('enemy-board').classList.remove('locked');
+    return;
+  }
   const cell = state.player.board[target.r][target.c];
   cell.shot = true;
   const el = getCellEl('battle-my-board', target.r, target.c);
@@ -941,7 +956,7 @@ function aiTurn() {
   if (cell.shipId !== null) {
     const ship = state.player.ships[cell.shipId];
     ship.hits++;
-    el.classList.add('hit');
+    if (el) el.classList.add('hit');
     state.aiHitsOnShip.push(target);
     enqueueAINeighbors(target);
     if (ship.hits >= ship.len) {
@@ -955,7 +970,7 @@ function aiTurn() {
     }
     setTimeout(aiTurn, 950);
   } else {
-    el.classList.add('miss');
+    if (el) el.classList.add('miss');
     state.turn = 'player'; setTurnArrow('player');
     document.getElementById('enemy-board').classList.remove('locked');
   }
@@ -972,7 +987,7 @@ function pickAITarget() {
   if (candidates.length === 0)
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++)
       if (!state.player.board[r][c].shot) candidates.push({ r, c });
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
 }
 function validAITarget(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE && !state.player.board[r][c].shot; }
 function enqueueAINeighbors(hit) {
