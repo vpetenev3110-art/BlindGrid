@@ -1066,11 +1066,13 @@ window.addEventListener('resize', () => {
 
 document.getElementById('overlay-btn').addEventListener('click', () => {
   document.getElementById('overlay').classList.add('hidden');
+  if (currentGame === 'snake') { startSnake(); return; }
   applyMode(lastMode);
   startPlacement();
 });
 document.getElementById('overlay-back').addEventListener('click', () => {
   document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('snake-screen').classList.add('hidden');
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   renderProfile();
@@ -1084,16 +1086,29 @@ function showMenu() {
   setGameUIHidden(true);
   const menu = document.getElementById('menu');
   menu.classList.remove('hidden');
-  // перезапуск анимаций лого/кнопок
-  menu.querySelectorAll('.logo-cross, .logo-text, .logo-cube').forEach(el => {
-    el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
-  });
 }
 
+let gameType = 'sea';   // 'sea' | 'snake'
+let currentGame = 'sea';
 document.getElementById('menu-play').addEventListener('click', () => {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('menu').classList.add('hidden');
+  document.getElementById('gametype-select').classList.remove('hidden');
+});
+document.getElementById('gametype-back-x').addEventListener('click', () => {
+  document.getElementById('gametype-select').classList.add('hidden');
+  showMenu();
+});
+document.getElementById('gt-sea').addEventListener('click', () => {
+  gameType = 'sea';
+  document.getElementById('gametype-select').classList.add('hidden');
+  renderProfile();
+  document.getElementById('opp-select').classList.remove('hidden');
+});
+document.getElementById('gt-snake').addEventListener('click', () => {
+  gameType = 'snake';
+  document.getElementById('gametype-select').classList.add('hidden');
   renderProfile();
   document.getElementById('opp-select').classList.remove('hidden');
 });
@@ -1128,14 +1143,15 @@ document.getElementById('style-flowers').addEventListener('click', () => { apply
 // экран выбора соперника
 document.getElementById('opp-ai').addEventListener('click', () => {
   document.getElementById('opp-select').classList.add('hidden');
-  showModeSelect();
+  if (gameType === 'snake') startSnake();
+  else showModeSelect();
 });
 document.getElementById('opp-pvp').addEventListener('click', () => {
   // против игрока — появится позже
 });
 document.getElementById('opp-back-x').addEventListener('click', () => {
   document.getElementById('opp-select').classList.add('hidden');
-  showMenu();
+  document.getElementById('gametype-select').classList.remove('hidden');
 });
 
 function showModeSelect() {
@@ -1146,6 +1162,7 @@ function showModeSelect() {
 }
 let lastMode = 'fast';
 function startGameWithMode(mode) {
+  currentGame = 'sea';
   lastMode = mode;
   applyMode(mode);
   document.getElementById('mode-select').classList.add('hidden');
@@ -1161,6 +1178,8 @@ document.getElementById('mode-back-x').addEventListener('click', () => {
 makeParticles('mode-particles');
 makeParticles('opp-particles');
 makeParticles('custom-particles');
+makeParticles('gametype-particles');
+makeParticles('snake-particles');
 syncStyleButtons();
 
 renderPlaceControls();
@@ -1311,9 +1330,9 @@ function popRankUp(ri, catChanged) {
 }
 function animateXpGain(before, gained) {
   const gainEl = document.getElementById('ov-xp-gain');
-  gainEl.textContent = '+' + gained + ' XP';
+  gainEl.textContent = '+0 XP';
   gainEl.classList.add('show');
-  if (gained <= 0) { applyOverlayRank(rankInfo(before)); return; }
+  if (gained <= 0) { gainEl.textContent = '+0 XP'; applyOverlayRank(rankInfo(before)); return; }
   const target = before + gained;
   const dur = Math.min(4200, 1700 + gained * 1.4);
   const start = performance.now();
@@ -1330,7 +1349,9 @@ function animateXpGain(before, gained) {
       lastIndex = ri.index; lastCat = ri.cat;
     }
     applyOverlayRank(ri);
+    gainEl.textContent = '+' + Math.round(val - before) + ' XP';
     if (t < 1) requestAnimationFrame(frame);
+    else gainEl.textContent = '+' + gained + ' XP';
   }
   requestAnimationFrame(frame);
 }
@@ -1360,3 +1381,196 @@ function showResultOverlay(win, before, gained) {
 }
 
 renderProfile();
+
+// ===================== РЕЖИМ «ЗМЕЙКА» =====================
+const SNAKE_N = 11;
+const SNAKE_TICK = 165;
+let snakeState = null;
+
+function buildSnakeGrid(id) {
+  const g = document.getElementById(id);
+  if (!g) return;
+  if (g.childElementCount === SNAKE_N * SNAKE_N) return; // строим один раз
+  g.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < SNAKE_N * SNAKE_N; i++) {
+    const c = document.createElement('div');
+    c.className = 'snake-cell';
+    frag.appendChild(c);
+  }
+  g.appendChild(frag);
+}
+
+function snakeNewSide(gridId) {
+  const mid = Math.floor(SNAKE_N / 2);
+  return {
+    gridId,
+    cells: [{ r: mid, c: mid + 1 }, { r: mid, c: mid }, { r: mid, c: mid - 1 }],
+    dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
+    fruit: null, hearts: 2, alive: true,
+    els: document.getElementById(gridId).children
+  };
+}
+
+function snakeRespawn(side) {
+  const mid = Math.floor(SNAKE_N / 2);
+  side.cells = [{ r: mid, c: mid + 1 }, { r: mid, c: mid }, { r: mid, c: mid - 1 }];
+  side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
+  snakeSpawnFruit(side);
+}
+
+function snakeSpawnFruit(side) {
+  const occ = new Set(side.cells.map(p => p.r + '_' + p.c));
+  const free = [];
+  for (let r = 0; r < SNAKE_N; r++)
+    for (let c = 0; c < SNAKE_N; c++)
+      if (!occ.has(r + '_' + c)) free.push({ r, c });
+  side.fruit = free.length ? free[Math.floor(Math.random() * free.length)] : null;
+}
+
+function snakePaint(side, headClass, bodyClass) {
+  const els = side.els;
+  if (!els) return;
+  for (let i = 0; i < els.length; i++) els[i].className = 'snake-cell';
+  if (side.fruit) els[side.fruit.r * SNAKE_N + side.fruit.c].classList.add('fruit');
+  side.cells.forEach((p, idx) => {
+    const i = p.r * SNAKE_N + p.c;
+    if (els[i]) { els[i].className = 'snake-cell ' + (idx === 0 ? headClass : bodyClass); }
+  });
+}
+
+function snakeAdvance(side, dir) {
+  const head = side.cells[0];
+  const nr = head.r + dir.r, nc = head.c + dir.c;
+  if (nr < 0 || nr >= SNAKE_N || nc < 0 || nc >= SNAKE_N) return 'crash';
+  const willEat = side.fruit && nr === side.fruit.r && nc === side.fruit.c;
+  const body = willEat ? side.cells : side.cells.slice(0, side.cells.length - 1);
+  for (const p of body) if (p.r === nr && p.c === nc) return 'crash';
+  side.cells.unshift({ r: nr, c: nc });
+  if (willEat) { snakeSpawnFruit(side); return 'eat'; }
+  side.cells.pop();
+  return 'ok';
+}
+
+function aiPickDir(side) {
+  const head = side.cells[0];
+  const all = [{ r: 0, c: 1 }, { r: 0, c: -1 }, { r: 1, c: 0 }, { r: -1, c: 0 }];
+  const opts = all.filter(d => !(d.r === -side.dir.r && d.c === -side.dir.c));
+  const occ = new Set(side.cells.slice(0, side.cells.length - 1).map(p => p.r + '_' + p.c));
+  const safe = opts.filter(d => {
+    const nr = head.r + d.r, nc = head.c + d.c;
+    return nr >= 0 && nr < SNAKE_N && nc >= 0 && nc < SNAKE_N && !occ.has(nr + '_' + nc);
+  });
+  const pool = safe.length ? safe : opts;
+  if (side.fruit) {
+    pool.sort((a, b) => {
+      const da = Math.abs(head.r + a.r - side.fruit.r) + Math.abs(head.c + a.c - side.fruit.c);
+      const db = Math.abs(head.r + b.r - side.fruit.r) + Math.abs(head.c + b.c - side.fruit.c);
+      return da - db;
+    });
+  }
+  return pool[0] || side.dir;
+}
+
+function snakeHeartSvg(lost) {
+  return '<svg class="' + (lost ? 'lost' : '') + '" viewBox="0 0 24 24" fill="#ff5d8f"><path d="M12 21s-7.5-5.9-7.5-11.2A3.8 3.8 0 0 1 12 7.2 3.8 3.8 0 0 1 19.5 9.8C19.5 15.1 12 21 12 21z"/></svg>';
+}
+function snakeRenderHearts() {
+  if (!snakeState) return;
+  const draw = (id, hearts) => {
+    let h = '';
+    for (let i = 0; i < 2; i++) h += snakeHeartSvg(i >= hearts);
+    const el = document.getElementById(id); if (el) el.innerHTML = h;
+  };
+  draw('snake-ai-hearts', snakeState.ai.hearts);
+  draw('snake-me-hearts', snakeState.me.hearts);
+}
+
+function snakeTick() {
+  if (!snakeState || !snakeState.running) return;
+  const me = snakeState.me, ai = snakeState.ai;
+  me.dir = me.nextDir;
+  if (snakeAdvance(me, me.dir) === 'crash') {
+    me.hearts--; if (me.hearts <= 0) me.alive = false; else snakeRespawn(me);
+  }
+  ai.dir = aiPickDir(ai);
+  if (snakeAdvance(ai, ai.dir) === 'crash') {
+    ai.hearts--; if (ai.hearts <= 0) ai.alive = false; else snakeRespawn(ai);
+  }
+  snakePaint(me, 'head-me', 'body-me');
+  snakePaint(ai, 'head-ai', 'body-ai');
+  snakeRenderHearts();
+  if (!me.alive || !ai.alive) {
+    const playerWon = me.alive && !ai.alive;
+    snakeStop();
+    setTimeout(() => snakeEnd(playerWon), 550);
+  }
+}
+
+function snakeEnd(win) {
+  const before = getXP();
+  const gained = win ? 100 : 0;
+  if (gained) setXP(before + gained);
+  document.getElementById('snake-screen').classList.add('hidden');
+  setTimeout(() => { showResultOverlay(win, before, gained); launchConfetti(win); }, 80);
+}
+
+function snakeStop() {
+  if (snakeState) { snakeState.running = false; clearInterval(snakeState.interval); }
+}
+
+function startSnake() {
+  currentGame = 'snake';
+  setGameUIHidden(true);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('opp-select').classList.add('hidden');
+  buildSnakeGrid('snake-ai');
+  buildSnakeGrid('snake-me');
+  snakeState = { running: true, interval: null, me: snakeNewSide('snake-me'), ai: snakeNewSide('snake-ai') };
+  snakeSpawnFruit(snakeState.me);
+  snakeSpawnFruit(snakeState.ai);
+  snakePaint(snakeState.me, 'head-me', 'body-me');
+  snakePaint(snakeState.ai, 'head-ai', 'body-ai');
+  snakeRenderHearts();
+  document.getElementById('snake-screen').classList.remove('hidden');
+  clearInterval(snakeState.interval);
+  snakeState.interval = setInterval(snakeTick, SNAKE_TICK);
+}
+
+function snakeSetDir(r, c) {
+  if (!snakeState || !snakeState.running) return;
+  const me = snakeState.me;
+  if (r === -me.dir.r && c === -me.dir.c) return; // нельзя развернуться на 180°
+  me.nextDir = { r, c };
+}
+
+// управление: клавиши + свайпы
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp') snakeSetDir(-1, 0);
+  else if (e.key === 'ArrowDown') snakeSetDir(1, 0);
+  else if (e.key === 'ArrowLeft') snakeSetDir(0, -1);
+  else if (e.key === 'ArrowRight') snakeSetDir(0, 1);
+});
+(function () {
+  const el = document.getElementById('snake-center');
+  if (!el) return;
+  let sx = 0, sy = 0, on = false;
+  const begin = (x, y) => { sx = x; sy = y; on = true; };
+  const finish = (x, y) => {
+    if (!on) return; on = false;
+    const dx = x - sx, dy = y - sy;
+    if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return;
+    if (Math.abs(dx) > Math.abs(dy)) snakeSetDir(0, dx > 0 ? 1 : -1);
+    else snakeSetDir(dy > 0 ? 1 : -1, 0);
+  };
+  el.addEventListener('touchstart', e => { const t = e.touches[0]; begin(t.clientX, t.clientY); }, { passive: true });
+  el.addEventListener('touchend', e => { const t = e.changedTouches[0]; finish(t.clientX, t.clientY); }, { passive: true });
+  el.addEventListener('mousedown', e => begin(e.clientX, e.clientY));
+  el.addEventListener('mouseup', e => finish(e.clientX, e.clientY));
+})();
+
+document.getElementById('snake-back-x').addEventListener('click', () => {
+  snakeStop();
+  document.getElementById('snake-screen').classList.add('hidden');
+  document.getElementById('opp-select').classList.remove('hidden');
+});

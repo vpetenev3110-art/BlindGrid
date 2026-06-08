@@ -296,9 +296,9 @@
   }
   /* окно с кнопкой Играть — место зарезервировано всегда */
   #play-window {
-    margin: 10px auto 0; width: 100%; max-width: 320px;
-    padding: 0 6px;
-    height: 56px; overflow: visible;
+    margin: 12px auto 0; width: 100%; max-width: none;
+    padding: 0;
+    height: 60px; overflow: visible;
     pointer-events: none;
   }
   #play-window #play-btn {
@@ -338,8 +338,11 @@
     background: rgba(16,185,129,0.16);
   }
   #play-btn {
-    display: flex; width: 100%; align-items: center; justify-content: center; gap: 10px;
-    font-size: 16px; padding: 17px; border-radius: 999px;
+    display: flex; width: 100%; align-items: center; justify-content: center; gap: 11px;
+    font-size: 14.5px; padding: 20px; border-radius: 10px;
+    color: #10b981; background: rgba(16,185,129,0.15); border: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+    backdrop-filter: blur(13px); -webkit-backdrop-filter: blur(13px);
   }
   #play-btn svg { display: block; }
 
@@ -577,7 +580,7 @@
   @keyframes menu-fade { 0% { opacity: 0; } 100% { opacity: 1; } }
 
   /* ===== ВЫБОР РЕЖИМА / СОПЕРНИКА / КАСТОМИЗАЦИЯ ===== */
-  #mode-select, #opp-select, #custom-select {
+  #mode-select, #opp-select, #custom-select, #gametype-select, #snake-screen {
     position: absolute; inset: 0; z-index: 56;
     display: flex; flex-direction: column;
     align-items: center; justify-content: flex-start;
@@ -587,10 +590,12 @@
     animation: bg-shift 26s ease infinite;
     transition: opacity 0.4s ease;
   }
-  #mode-select.hidden, #opp-select.hidden, #custom-select.hidden { opacity: 0; pointer-events: none; }
-  #mode-particles, #opp-particles, #custom-particles { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  #mode-select.hidden, #opp-select.hidden, #custom-select.hidden, #gametype-select.hidden, #snake-screen.hidden { opacity: 0; pointer-events: none; }
+  #mode-particles, #opp-particles, #custom-particles, #gametype-particles, #snake-particles { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
   #mode-select > *:not(#mode-particles):not(.flat-back):not(.pf-window),
   #opp-select > *:not(#opp-particles):not(.flat-back):not(.pf-window),
+  #gametype-select > *:not(#gametype-particles),
+  #snake-screen > *:not(#snake-particles),
   #custom-select > *:not(#custom-particles):not(.flat-back) { position: relative; z-index: 1; }
   /* верхняя плашка с лого как в игре */
   .mode-topbar {
@@ -636,7 +641,7 @@
   }
   /* заголовок режима не должен сдвигать кнопки — выносим из потока */
   #mode-title { position: absolute; top: 150px; left: 0; right: 0; margin-bottom: 0; }
-  #custom-center { justify-content: flex-start; padding: 6px 22px 24px; gap: 0; overflow-y: auto; }
+  #custom-center { justify-content: flex-start; padding: 34px 22px 24px; gap: 0; overflow-y: auto; }
   #custom-head { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 22px; }
   #custom-head-ico {
     width: 50px; height: 50px; border-radius: 16px; color: #fff;
@@ -779,6 +784,39 @@
   #opp-ai        { --bc:#2a9d96; --bbg:rgba(42,157,150,0.12); --bbg-h:rgba(42,157,150,0.2); }
   #opp-pvp       { --bc:#4c5fd0; --bbg:rgba(76,95,208,0.12); --bbg-h:rgba(76,95,208,0.2); }
 
+  /* ===== ВЫБОР ИГРЫ ===== */
+  #gametype-center {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    width: 100%; padding-top: 204px;
+  }
+  #gametype-buttons { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+
+  /* ===== ЗМЕЙКА ===== */
+  #snake-center {
+    flex: 1; width: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    padding: 4px 16px 14px; overflow: hidden; touch-action: none;
+    --snake-w: min(80vw, 252px);
+  }
+  .snake-board-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .snake-board-wrap .board-label { max-width: var(--snake-w); width: 100%; }
+  .snake-grid {
+    width: 100%; max-width: var(--snake-w); aspect-ratio: 1; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(11, 1fr); gap: 3px; padding: 6px;
+    border-radius: 16px; background: var(--panel-bg, rgba(255,255,255,0.4));
+    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06));
+  }
+  .snake-cell { aspect-ratio: 1; border-radius: 4px; background: var(--btn-soft-bg); transition: background 0.07s linear; }
+  .snake-cell.body-me { background: linear-gradient(140deg, #62d3cd, #4fcac4); }
+  .snake-cell.head-me { background: linear-gradient(140deg, #4fcac4, #2bb3ac); box-shadow: 0 0 6px rgba(79,202,196,0.55); border-radius: 6px; }
+  .snake-cell.body-ai { background: linear-gradient(140deg, #9d8fff, #8b7cff); }
+  .snake-cell.head-ai { background: linear-gradient(140deg, #8b7cff, #6c5ce0); box-shadow: 0 0 6px rgba(139,124,255,0.55); border-radius: 6px; }
+  .snake-cell.fruit { background: linear-gradient(140deg, #ff8c97, #ff5d8f); box-shadow: 0 0 7px rgba(255,93,115,0.6); border-radius: 50%; transform: scale(0.74); }
+  #snake-divider { height: 4px; }
+  .snake-hearts { display: inline-flex; gap: 4px; align-items: center; }
+  .snake-hearts svg { width: 15px; height: 15px; display: block; }
+  .snake-hearts .lost { opacity: 0.25; }
+
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   .pf-window {
     position: absolute; top: 58px; left: 8px; right: 8px; z-index: 3;
@@ -789,7 +827,7 @@
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   }
   #opp-select:not(.hidden) .pf-window,
-  #mode-select:not(.hidden) .pf-window { animation: pf-drop 0.5s cubic-bezier(.22,1,.36,1) 0.1s both; }
+  #mode-select:not(.hidden) .pf-window { opacity: 1; }
   @keyframes pf-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: translateY(0); } }
   .pf-info { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; text-align: left; }
   .pf-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: var(--ink);
@@ -874,9 +912,9 @@
   #ov-xp-bar { width: 100%; height: 12px; border-radius: 999px; overflow: hidden;
     background: rgba(255,255,255,0.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.13); }
   #ov-xp-fill { display: block; height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg,#c8804a,#e6a96f); }
-  #ov-xp-gain { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: #fff; opacity: 0; }
-  #ov-xp-gain.show { opacity: 1; animation: ov-gain 0.5s cubic-bezier(.3,1.3,.5,1) both; }
-  @keyframes ov-gain { 0% { transform: scale(0.6); } 100% { transform: scale(1); } }
+  #ov-xp-gain { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: #fff; opacity: 0;
+    transition: opacity 0.45s ease; }
+  #ov-xp-gain.show { opacity: 1; }
   #ov-actions { width: 100%; display: flex; flex-direction: column; gap: 14px; }
   #ov-actions .menu-btn { opacity: 0; transform: translateY(10px); pointer-events: none;
     transition: opacity 0.4s ease, transform 0.4s ease, background 0.2s ease; }
