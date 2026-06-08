@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=430, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>BLINDGRID</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+<div id="game">
+  <div id="particles"></div>
+
+  <div id="header">
+    <div id="title"><svg class="logo-cross" viewBox="0 0 24 24" width="19" height="19"><line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg><span class="logo-text">BLINDGRID</span><span class="logo-cube"></span></div>
+  </div>
+
+  <div class="screen active" id="placement-screen">
+    <div id="place-board-wrap">
+      <div class="board-label">
+        <span>твоё поле</span>
+        <span class="fleet-bar"><span class="fill" id="place-fill"></span></span>
+      </div>
+      <div class="grid" id="place-board"></div>
+    </div>
+    <div id="dock">
+      <div id="dock-title">твои фигуры</div>
+      <div id="dock-pieces"></div>
+    </div>
+    <div id="play-window">
+      <button id="play-btn">Играть
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 4 L20 12 L6 20 Z" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="screen" id="battle-screen">
+    <div class="board-section">
+      <div class="board-label">
+        <span>твоё поле</span>
+        <span class="fleet-bar"><span class="fill" id="my-fill"></span></span>
+      </div>
+      <div class="grid" id="battle-my-board"></div>
+    </div>
+    <div id="turn-zone">
+      <div id="turn-arrow" class="down">
+        <svg viewBox="0 0 28 28" width="28" height="28">
+          <path class="tri" d="M8 8.5 Q5.5 8.5 7 11 L11.5 18.5 Q14 22.5 16.5 18.5 L21 11 Q22.5 8.5 20 8.5 Z"/>
+        </svg>
+      </div>
+    </div>
+    <div class="board-section" style="position:relative;">
+      <div class="board-label">
+        <span>поле противника</span>
+        <span class="fleet-bar"><span class="fill" id="enemy-fill"></span></span>
+      </div>
+      <div class="grid" id="enemy-board"></div>
+      <div id="combo-tag"></div>
+    </div>
+  </div>
+
+  <div id="controls"></div>
+  <div id="drag-ghost" style="display:none"></div>
+
+  <div id="menu">
+    <div id="menu-particles"></div>
+    <div id="menu-logo">
+      <svg class="logo-cross" viewBox="0 0 24 24" width="34" height="34"><line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg><span class="logo-text">BLINDGRID</span><span class="logo-cube"></span>
+    </div>
+    <div id="menu-buttons">
+      <button class="btn menu-btn menu-btn-secondary" id="menu-play">
+        <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5 L19 12 L7 19 Z"/></svg>
+        <span>Играть</span>
+      </button>
+      <button class="btn menu-btn menu-btn-secondary" id="menu-friends">
+        <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19 a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="7.5" r="2.4"/><path d="M16 13.5 a4.5 4.5 0 0 1 4.5 4.5"/></svg>
+        <span>Друзья</span>
+      </button>
+      <button class="btn menu-btn menu-btn-secondary" id="menu-settings">
+        <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 a9 9 0 1 0 0 18 c1.4 0 2.2-1 2.2-2 0-1.3-1-1.6-1-2.6 0-.8.7-1.4 1.6-1.4 H17 a4 4 0 0 0 4-4 c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/></svg>
+        <span>Кастомизация</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="custom-select" class="hidden">
+    <div id="custom-particles"></div>
+    <button class="flat-back" id="custom-back">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 L8 12 L15 19"/></svg>
+      <span>Назад</span>
+    </button>
+    <div class="mode-topbar">
+      <svg class="logo-cross" viewBox="0 0 24 24" width="19" height="19"><line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg>
+      <span class="logo-text">BLINDGRID</span>
+      <span class="logo-cube"></span>
+    </div>
+    <div id="custom-center">
+      <h2 id="custom-title">Кастомизация</h2>
+
+      <div class="custom-card">
+        <div class="custom-card-head">
+          <span class="custom-section-label">Тёмная тема</span>
+          <button id="theme-switch" class="toggle-switch" role="switch" aria-label="тёмная тема">
+            <span class="toggle-knob">
+              <svg class="toggle-ico ico-sun" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5 v2 M12 19.5 v2 M2.5 12 h2 M19.5 12 h2 M5.2 5.2 l1.4 1.4 M17.4 17.4 l1.4 1.4 M18.8 5.2 l-1.4 1.4 M6.6 17.4 l-1.4 1.4"/></svg>
+              <svg class="toggle-ico ico-moon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5 A8 8 0 0 1 9.5 4 a7 7 0 1 0 10.5 10.5z"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="custom-card">
+        <div class="custom-section-label">Стиль фигур</div>
+        <div id="style-toggle">
+          <button class="style-opt" id="style-classic" data-style="classic">
+            <div class="style-preview" id="preview-classic"></div>
+            <span class="style-name">Классика</span>
+            <span class="style-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13 l4 4 L19 7"/></svg></span>
+          </button>
+          <button class="style-opt" id="style-flowers" data-style="flowers">
+            <div class="style-preview" id="preview-flowers"></div>
+            <span class="style-name">Цветочки</span>
+            <span class="style-check"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13 l4 4 L19 7"/></svg></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="opp-select" class="hidden">
+    <div id="opp-particles"></div>
+    <div class="mode-topbar">
+      <svg class="logo-cross" viewBox="0 0 24 24" width="19" height="19"><line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg>
+      <span class="logo-text">BLINDGRID</span>
+      <span class="logo-cube"></span>
+    </div>
+    <button class="flat-back" id="opp-back">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 L8 12 L15 19"/></svg>
+      <span>Назад</span>
+    </button>
+    <div id="profile-card">
+      <div id="profile-avatar">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20 a7.5 7.5 0 0 1 15 0"/></svg>
+      </div>
+      <div id="profile-info">
+        <div id="profile-top">
+          <span id="profile-name">Игрок</span>
+          <span id="profile-rank"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 2 l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 21.2 6.8 18l1-5.8L3.6 8.1l5.8-.8z"/></svg>Новобранец</span>
+        </div>
+        <div id="profile-xp-row">
+          <div id="profile-xp-bar"><span id="profile-xp-fill"></span></div>
+          <span id="profile-xp-text">120 / 500 XP</span>
+        </div>
+      </div>
+    </div>
+    <div id="opp-center">
+      <div id="opp-buttons">
+        <button class="btn menu-btn menu-btn-secondary" id="opp-ai">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="2.5"/><path d="M10 3 v4 M14 3 v4 M10 17 v4 M14 17 v4 M3 10 h4 M3 14 h4 M17 10 h4 M17 14 h4"/></svg>
+          <span>Против ИИ</span>
+        </button>
+        <button class="btn menu-btn menu-btn-secondary" id="opp-pvp">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="8" r="2.6"/><path d="M2.5 19 a4 4 0 0 1 8 0"/><circle cx="17.5" cy="8" r="2.6"/><path d="M13.5 19 a4 4 0 0 1 8 0"/></svg>
+          <span>Против игрока</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mode-select" class="hidden">
+    <div id="mode-particles"></div>
+    <div class="mode-topbar">
+      <svg class="logo-cross" viewBox="0 0 24 24" width="19" height="19"><line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg>
+      <span class="logo-text">BLINDGRID</span>
+      <span class="logo-cube"></span>
+    </div>
+    <button class="flat-back" id="mode-back">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 L8 12 L15 19"/></svg>
+      <span>Назад</span>
+    </button>
+    <div id="mode-center">
+      <h2 id="mode-title">Выбери режим</h2>
+      <div id="mode-buttons">
+        <button class="btn menu-btn menu-btn-secondary mode-card" id="mode-fast">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 L4 14 h7 l-1 8 9-12 h-7 z"/></svg>
+          <span>Быстрый</span>
+        </button>
+        <button class="btn menu-btn menu-btn-secondary mode-card" id="mode-classic">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9 3.5 v17 M15 3.5 v17 M3.5 9 h17 M3.5 15 h17"/></svg>
+          <span>Классика</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay" class="hidden">
+    <h1 id="overlay-title"><span class="logo-text">ПОБЕДА!</span></h1>
+    <p id="overlay-text"></p>
+    <button class="btn" id="overlay-btn">Играть</button>
+  </div>
+</div>
+
+<script src="index.js"></script>
+</body>
+</html>
