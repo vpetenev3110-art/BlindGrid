@@ -9,32 +9,48 @@ if (tg) {
 }
 
 // частицы — в форме фигур из морского боя (блоки 1-3 клетки), мягкие, размытые
-function makeParticles(layerId) {
-  const layer = document.getElementById(layerId);
-  if (!layer) return;
-  const grads = [
-    'linear-gradient(140deg,#ff8c97,#ff6f86)',
-    'linear-gradient(140deg,#62d3cd,#4fcac4)',
-    'linear-gradient(140deg,#ffce6e,#ffbf4d)'
-  ];
-  const N = 16;
+// единый набор частиц: считаем позиции один раз и рисуем идентично во всех слоях
+const PARTICLE_GRADS = [
+  'linear-gradient(140deg,#ff8c97,#ff6f86)',
+  'linear-gradient(140deg,#62d3cd,#4fcac4)',
+  'linear-gradient(140deg,#ffce6e,#ffbf4d)'
+];
+const PARTICLE_SPECS = (function () {
+  const N = 16, specs = [];
   for (let i = 0; i < N; i++) {
-    const p = document.createElement('div');
-    p.className = 'particle';
     const unit = 6 + Math.random() * 5;
     const len = 1 + Math.floor(Math.random() * 3);
     const horiz = Math.random() < 0.5;
-    if (horiz) { p.style.width = (unit * len) + 'px'; p.style.height = unit + 'px'; }
-    else { p.style.width = unit + 'px'; p.style.height = (unit * len) + 'px'; }
-    p.style.left = (Math.random() * 100) + '%';
-    p.style.bottom = '-10%';
-    p.style.background = grads[i % grads.length];
-    p.style.setProperty('--rot', (Math.random() * 30 - 15) + 'deg');
     const dur = 40 + Math.random() * 35;
-    p.style.animationDuration = dur + 's';
-    p.style.animationDelay = (-Math.random() * dur) + 's';
-    layer.appendChild(p);
+    specs.push({
+      w: horiz ? unit * len : unit,
+      h: horiz ? unit : unit * len,
+      left: Math.random() * 100,
+      grad: PARTICLE_GRADS[i % PARTICLE_GRADS.length],
+      rot: Math.random() * 30 - 15,
+      dur: dur,
+      delay: -Math.random() * dur
+    });
   }
+  return specs;
+})();
+function makeParticles(layerId) {
+  const layer = document.getElementById(layerId);
+  if (!layer) return;
+  layer.innerHTML = '';
+  PARTICLE_SPECS.forEach(s => {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.width = s.w + 'px';
+    p.style.height = s.h + 'px';
+    p.style.left = s.left + '%';
+    p.style.bottom = '-10%';
+    p.style.background = s.grad;
+    p.style.setProperty('--rot', s.rot + 'deg');
+    p.style.animationDuration = s.dur + 's';
+    p.style.animationDelay = s.delay + 's';
+    layer.appendChild(p);
+  });
 }
 makeParticles('particles');
 makeParticles('menu-particles');
@@ -1068,7 +1084,7 @@ document.getElementById('menu-settings').addEventListener('click', () => {
   buildStylePreviews();
   syncStyleButtons();
 });
-document.getElementById('custom-back').addEventListener('click', () => {
+document.getElementById('custom-back-x').addEventListener('click', () => {
   document.getElementById('custom-select').classList.add('hidden');
   showMenu();
 });
@@ -1091,7 +1107,7 @@ document.getElementById('opp-ai').addEventListener('click', () => {
 document.getElementById('opp-pvp').addEventListener('click', () => {
   // против игрока — появится позже
 });
-document.getElementById('opp-back').addEventListener('click', () => {
+document.getElementById('opp-back-x').addEventListener('click', () => {
   document.getElementById('opp-select').classList.add('hidden');
   showMenu();
 });
@@ -1108,7 +1124,7 @@ function startGameWithMode(mode) {
 }
 document.getElementById('mode-fast').addEventListener('click', () => startGameWithMode('fast'));
 document.getElementById('mode-classic').addEventListener('click', () => startGameWithMode('classic'));
-document.getElementById('mode-back').addEventListener('click', () => {
+document.getElementById('mode-back-x').addEventListener('click', () => {
   document.getElementById('mode-select').classList.add('hidden');
   document.getElementById('opp-select').classList.remove('hidden');
 });

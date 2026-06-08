@@ -510,8 +510,7 @@
     position: absolute; inset: 0; z-index: 55;
     display: flex; flex-direction: column;
     align-items: center; justify-content: flex-start;
-    gap: 0; text-align: center; padding: 30px;
-    padding-top: 150px;
+    gap: 0; text-align: center; padding: 150px 0 34px;
     background: var(--bg-grad);
     background-size: 300% 300%;
     animation: bg-shift 26s ease infinite;
@@ -552,8 +551,8 @@
     animation: menu-fade 0.6s ease 0.7s both;
   }
   #menu-buttons {
-    margin-top: 60px; display: flex; flex-direction: column; gap: 14px;
-    width: 100%; max-width: 300px;
+    margin-top: 56px; display: flex; flex-direction: column; gap: 22px;
+    width: 100%; max-width: none; padding: 0;
     animation: menu-rise 0.6s cubic-bezier(.25,.8,.3,1) 0.7s both;
   }
   .menu-btn {
@@ -563,6 +562,22 @@
     white-space: nowrap;
     transition: transform 0.16s ease, background 0.22s ease, border-color 0.22s ease;
   }
+  /* кнопки главного меню — во всю ширину экрана, мягкая размытая граница */
+  #menu-buttons .menu-btn {
+    justify-content: center; gap: 13px;
+    padding: 20px 24px; border-radius: 22px; font-size: 14.5px;
+  }
+  #menu-buttons .menu-btn-secondary {
+    border: 1.5px solid color-mix(in srgb, var(--bc, #6b6485) 30%, transparent) !important;
+    background: var(--bbg, rgba(107,100,133,0.08)) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 24px -14px rgba(52,48,74,0.55) !important;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  #menu-buttons .menu-btn-secondary:hover {
+    transform: translateY(-2px) scale(1.01);
+    border-color: color-mix(in srgb, var(--bc, #6b6485) 55%, transparent) !important;
+  }
+  #menu-buttons .menu-btn-secondary:active { transform: scale(0.985); }
   .menu-ico { width: 22px; height: 22px; flex-shrink: 0; }
   .menu-btn-secondary {
     color: var(--bc, var(--ink-soft)) !important;
@@ -605,6 +620,15 @@
     align-self: flex-start; padding: 18px 18px 0; color: var(--ink);
   }
   .mode-topbar .logo-cross { color: var(--miss); flex-shrink: 0; }
+  /* крестик в лого работает как «назад» и очень медленно слегка пульсирует */
+  .topbar-cross {
+    cursor: pointer; display: inline-flex; box-sizing: content-box;
+    padding: 8px; margin: -8px; border-radius: 12px;
+    transition: color 0.2s ease;
+    animation: cross-breathe 4.5s ease-in-out infinite;
+  }
+  .topbar-cross:hover { color: var(--ink) !important; }
+  @keyframes cross-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
   .mode-topbar .logo-text { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 23px; letter-spacing: 2px; }
   .mode-topbar .logo-cube { width: 15px; height: 15px; border-radius: 4px; flex-shrink: 0;
     background: var(--grad-3); box-shadow: 0 1px 6px rgba(255,93,115,0.6); }
@@ -629,15 +653,25 @@
     font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 27px;
     letter-spacing: 1px; color: var(--ink); margin-bottom: 30px;
   }
-  #custom-center { justify-content: flex-start; padding-top: 10px; gap: 0; overflow-y: auto; }
-  #custom-title { margin-bottom: 22px; }
+  #custom-center { justify-content: flex-start; padding: 6px 22px 24px; gap: 0; overflow-y: auto; }
+  #custom-head { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 22px; }
+  #custom-head-ico {
+    width: 50px; height: 50px; border-radius: 16px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(140deg, #9d8fff, #6c80f5);
+    box-shadow: 0 7px 20px -6px rgba(108,128,245,0.7);
+    animation: ch-pop 0.5s cubic-bezier(.34,1.4,.5,1) both;
+  }
+  @keyframes ch-pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  #custom-title { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 24px; letter-spacing: 0.5px; color: var(--ink); margin: 0; }
+  #custom-sub { font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 12px; color: var(--ink-soft); margin: 0; }
   .custom-card {
-    width: 100%; max-width: 320px; margin: 0 auto 16px;
-    padding: 18px; border-radius: 20px;
+    width: 100%; max-width: 340px; margin: 0 auto 14px;
+    padding: 16px 18px; border-radius: 20px;
     background: var(--panel-bg, rgba(255,255,255,0.45));
-    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06));
-    backdrop-filter: blur(6px);
-    display: flex; flex-direction: column; align-items: center;
+    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06)), 0 8px 26px -18px rgba(52,48,74,0.55);
+    backdrop-filter: blur(8px);
+    display: flex; flex-direction: column; align-items: stretch;
   }
   .custom-section-label {
     font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
@@ -646,6 +680,8 @@
   }
   .custom-card-head { display: flex; align-items: center; justify-content: space-between; width: 100%; }
   .custom-card-head .custom-section-label { margin-bottom: 0; }
+  .cc-label-wrap { display: flex; flex-direction: column; gap: 3px; text-align: left; }
+  .custom-section-cap { font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 11px; color: var(--ink-soft); opacity: 0.7; }
   /* красивый тумблер темы */
   .toggle-switch {
     position: relative; width: 58px; height: 30px; border-radius: 999px; cursor: pointer;
@@ -665,26 +701,29 @@
   body.theme-dark .toggle-knob { transform: translateX(28px); background: #9d8fff; }
   body.theme-dark .ico-sun  { opacity: 0; transform: rotate(40deg) scale(0.6); }
   body.theme-dark .ico-moon { opacity: 1; transform: rotate(0) scale(1); }
-  /* стиль фигур — по одному в строке */
-  #style-toggle { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+  /* стиль фигур — плитки по две в ряд */
+  #style-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-top: 12px; }
   .style-opt {
-    width: 100%; display: flex; align-items: center; gap: 14px;
-    padding: 12px 14px; border-radius: 16px; cursor: pointer;
-    background: var(--btn-soft-bg); border: 3px solid var(--ink-soft);
+    position: relative; width: 100%;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 16px 12px 12px; border-radius: 16px; cursor: pointer;
+    background: var(--btn-soft-bg); border: 2.5px solid transparent;
+    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.07));
     color: var(--ink-soft);
-    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px;
-    text-transform: uppercase; letter-spacing: 0.5px; text-align: left;
-    transition: transform 0.14s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px;
+    text-transform: uppercase; letter-spacing: 0.5px; text-align: center;
+    transition: transform 0.14s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   }
   .style-opt:hover { transform: translateY(-2px); }
-  .style-opt.selected { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.12); }
+  .style-opt.selected { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.1); box-shadow: none; }
   .style-preview {
-    flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
-    min-height: 46px; overflow: hidden;
+    width: 100%; min-height: 62px; overflow: hidden;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 7px;
   }
   .style-name { flex-shrink: 0; }
   .style-check {
-    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    position: absolute; top: 8px; right: 8px;
+    width: 22px; height: 22px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: #10b981; color: #fff; opacity: 0; transform: scale(0.4);
     transition: opacity 0.2s ease, transform 0.2s cubic-bezier(.34,1.5,.5,1);
