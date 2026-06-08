@@ -351,12 +351,13 @@
   #drag-ghost[data-len="2"] { background: var(--grad-2); border: 4px solid var(--edge-2); }
   #drag-ghost[data-len="1"] { background: var(--grad-1); border: 4px solid var(--edge-1); }
 
-  #battle-screen { justify-content: center; }
+  #battle-screen { justify-content: flex-start; padding-top: 6px; }
   #battle-screen .board-section { padding: 0 20px; display: flex; flex-direction: column; justify-content: center; }
+  #battle-screen .board-section-mini { align-items: flex-start; }
   #battle-screen .board-label { margin-bottom: 5px; }
-  /* верхнее «твоё поле» — уменьшенное, информационное */
-  #battle-my-board { max-width: var(--board-w-mini, 200px); }
-  #battle-screen .board-section-mini .board-label { max-width: var(--board-w-mini, 200px); }
+  /* верхнее «твоё поле» — уменьшенное, информационное, по левому краю */
+  #battle-my-board { max-width: var(--board-w-mini, 200px); margin-left: 0; margin-right: auto; }
+  #battle-screen .board-section-mini .board-label { max-width: var(--board-w-mini, 200px); margin-left: 0; margin-right: auto; }
   #turn-zone { display: flex; align-items: center; justify-content: center; padding: 6px 0; }
   #turn-arrow {
     width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;
@@ -551,19 +552,19 @@
     letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
     transition: transform 0.16s ease, background 0.22s ease, border-color 0.22s ease;
   }
-  /* полосы во всю ширину экрана, без скруглений, чуть толще; .btn.menu-btn бьёт базовый .btn */
-  .btn.menu-btn { justify-content: center; padding: 23px 24px; border-radius: 0; font-size: 14.5px; }
+  /* полосы во всю ширину, лёгкое скругление, без контура, с постоянным размытием фона */
+  .btn.menu-btn { justify-content: center; padding: 23px 24px; border-radius: 10px; font-size: 14.5px; }
   .menu-ico { width: 22px; height: 22px; flex-shrink: 0; }
   .btn.menu-btn-secondary {
     color: var(--bc, var(--ink-soft)) !important;
-    border: 1.6px solid color-mix(in srgb, var(--bc, #6b6485) 32%, transparent) !important;
-    background: var(--bbg, rgba(107,100,133,0.10)) !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16) !important;
+    border: none !important;
+    background: var(--bbg, rgba(107,100,133,0.12)) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14) !important;
+    backdrop-filter: blur(13px); -webkit-backdrop-filter: blur(13px);
   }
   .btn.menu-btn-secondary:hover {
     transform: scale(1.01);
-    background: var(--bbg-h, rgba(107,100,133,0.18)) !important;
-    border-color: color-mix(in srgb, var(--bc, #6b6485) 55%, transparent) !important;
+    background: var(--bbg-h, rgba(107,100,133,0.20)) !important;
   }
   .btn.menu-btn-secondary:active { transform: scale(0.99); }
   /* лёгкие оттенки на каждую кнопку */
@@ -772,17 +773,15 @@
 
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   #pf-window {
-    position: absolute; top: 14px; right: 0; z-index: 3;
+    position: absolute; top: 58px; left: 0; right: 0; z-index: 3;
     display: flex; align-items: center; gap: 13px;
-    padding: 11px 14px 11px 18px; border-radius: 20px 0 0 20px;
+    padding: 11px 18px; border-radius: 0;
     background: var(--panel-bg, rgba(255,255,255,0.5));
-    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.07)), -7px 7px 22px -10px rgba(52,48,74,0.45);
-    backdrop-filter: blur(8px); min-width: 262px;
+    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.07)), 0 6px 18px -12px rgba(52,48,74,0.45);
+    backdrop-filter: blur(8px);
   }
-  /* на экране соперника текст лого прячем — крестик-«назад» остаётся, окно профиля широкое */
-  #opp-select .mode-topbar .logo-text,
-  #opp-select .mode-topbar .logo-cube { display: none; }
-  #opp-select:not(.hidden) #pf-window { animation: profile-slide 0.6s cubic-bezier(.22,1,.36,1) 0.1s both; }
+  #opp-select:not(.hidden) #pf-window { animation: pf-drop 0.5s cubic-bezier(.22,1,.36,1) 0.1s both; }
+  @keyframes pf-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: translateY(0); } }
   #pf-info { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; text-align: left; }
   #pf-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: var(--ink);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
