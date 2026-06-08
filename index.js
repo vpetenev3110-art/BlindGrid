@@ -581,7 +581,7 @@ function startBattle() {
   const playerBoard = freshBoard();
   playerShips.forEach(s => s.cells.forEach(({ r, c }) => playerBoard[r][c].shipId = s.id));
   const enemy = placeFleetAuto();
-  state = { player: { board: playerBoard, ships: playerShips }, enemy, turn: 'player', over: false, aiQueue: [], aiHitsOnShip: [], combo: 0, missStreak: 0 };
+  state = { player: { board: playerBoard, ships: playerShips }, enemy, turn: 'player', over: false, aiQueue: [], aiHitsOnShip: [], combo: 0, missStreak: 0, comboXP: 0 };
   hideCombo();
   showScreen('battle-screen');
   document.getElementById('controls').classList.add('hidden');
@@ -731,7 +731,11 @@ function onEnemyCellClick(r, c) {
     // КОМБО: попадание увеличивает
     state.combo = (state.combo || 0) + 1;
     state.missStreak = 0;
-    if (state.combo >= 2) showCombo(state.combo);
+    if (state.combo >= 2) {
+      // комбо-опыт по геометрии: x2=10, x3=20, x4=40, ...
+      state.comboXP = (state.comboXP || 0) + 10 * Math.pow(2, state.combo - 2);
+      showCombo(state.combo);
+    }
     if (ship.hits >= ship.len) {
       ship.sunk = true;
       setTimeout(() => {
@@ -989,17 +993,13 @@ function enqueueAINeighbors(hit) {
 function endGame(winner) {
   state.over = true;
   document.getElementById('enemy-board').classList.add('locked');
-  const overlay = document.getElementById('overlay');
-  const title = document.getElementById('overlay-title');
-  const text = document.getElementById('overlay-text');
-  const btn = document.getElementById('overlay-btn');
-  text.textContent = '';
-  if (winner === 'player') { title.innerHTML = 'ПОБЕДА!'; }
-  else { title.innerHTML = 'ПОРАЖЕНИЕ'; }
-  btn.textContent = 'Ещё раз';
+  const win = winner === 'player';
+  const before = getXP();
+  const gained = (win ? 100 : 0) + Math.round(state.comboXP || 0);
+  setXP(before + gained);
   setTimeout(() => {
-    overlay.classList.remove('hidden');
-    launchConfetti(winner === 'player');
+    showResultOverlay(win, before, gained);
+    launchConfetti(win);
   }, 600);
 }
 
@@ -1071,6 +1071,7 @@ document.getElementById('menu-play').addEventListener('click', () => {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('menu').classList.add('hidden');
+  renderProfile();
   document.getElementById('opp-select').classList.remove('hidden');
 });
 document.getElementById('menu-friends').addEventListener('click', () => {
@@ -1139,3 +1140,163 @@ applyMode('fast');
 startPlacement();
 setGameUIHidden(true);
 document.getElementById('menu').classList.remove('hidden');
+
+/* ===================== СИСТЕМА ОПЫТА И РАНГОВ (v1.1) ===================== */
+const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
+const XP_KEY = 'bg_xp_v1';
+let bgXpMem = 0;
+function getXP() { try { return parseInt(localStorage.getItem(XP_KEY) || '0', 10) || 0; } catch (e) { return bgXpMem; } }
+function setXP(v) { bgXpMem = v; try { localStorage.setItem(XP_KEY, String(v)); } catch (e) {} renderProfile(); }
+
+const RANK_CATS = [
+  { key: 'bronze',    name: 'Бронза',    c1: '#c8804a', c2: '#e6a96f' },
+  { key: 'iron',      name: 'Железо',    c1: '#7d8590', c2: '#aeb6c1' },
+  { key: 'silver',    name: 'Серебро',   c1: '#9aa7b8', c2: '#dde6f0' },
+  { key: 'gold',      name: 'Золото',    c1: '#e0a52a', c2: '#ffdb74' },
+  { key: 'diamond',   name: 'Алмаз',     c1: '#2fb4d8', c2: '#9af0ff' },
+  { key: 'emerald',   name: 'Изумруд',   c1: '#1aa869', c2: '#74e8b0' },
+  { key: 'ruby',      name: 'Рубин',     c1: '#d4324f', c2: '#ff7a92' },
+  { key: 'brilliant', name: 'Бриллиант', c1: '#8a7bff', c2: '#d6c9ff' }
+];
+const TIER_NEED = {
+  bronze: [250, 350, 450], iron: [550, 700, 850], silver: [1000, 1200, 1400],
+  gold: [1700, 2000, 2300], diamond: [2700, 3100, 3500], emerald: [4000, 4600, 5200],
+  ruby: [6000, 6800, 7600], brilliant: [8800, 10000, 11500]
+};
+const ROMAN = ['', 'I', 'II', 'III'];
+const RANKS = [];
+RANK_CATS.forEach(cat => {
+  for (let t = 1; t <= 3; t++) RANKS.push({ cat: cat.key, catName: cat.name, tier: t, c1: cat.c1, c2: cat.c2, need: TIER_NEED[cat.key][t - 1] });
+});
+RANKS.push({ cat: 'absolute', catName: 'Абсолют', tier: 0, c1: '#ff5d8f', c2: '#6c80f5', need: Infinity });
+
+function mkRI(i, into, need) {
+  const r = RANKS[i];
+  const name = r.tier ? (r.catName + ' ' + ROMAN[r.tier]) : r.catName;
+  const frac = need === Infinity ? 1 : Math.max(0, Math.min(1, into / need));
+  const bw = r.cat === 'absolute' ? 4.5 : (2 + r.tier * 0.7);
+  return { index: i, cat: r.cat, catName: r.catName, tier: r.tier, name: name, c1: r.c1, c2: r.c2, into: into, need: need, frac: frac, bw: bw };
+}
+function rankInfo(total) {
+  let acc = 0;
+  for (let i = 0; i < RANKS.length; i++) {
+    const r = RANKS[i];
+    if (r.need === Infinity) return mkRI(i, total - acc, Infinity);
+    if (total < acc + r.need) return mkRI(i, total - acc, r.need);
+    acc += r.need;
+  }
+  return mkRI(RANKS.length - 1, 0, Infinity);
+}
+
+function hexA(hex, a) {
+  const h = hex.replace('#', '');
+  const f = h.length === 3 ? h.split('').map(x => x + x).join('') : h;
+  const n = parseInt(f, 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+function styleFrame(el, ri) {
+  if (!el) return;
+  el.style.padding = ri.bw + 'px';
+  const glow = (ri.tier === 3 || ri.cat === 'absolute') ? 14 : (ri.tier === 2 ? 9 : 6);
+  el.style.boxShadow = '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
+  if (ri.cat === 'absolute') {
+    el.classList.add('absolute-frame');
+    el.style.background = 'conic-gradient(from 0deg,#ff5d8f,#ffbf4d,#4fcac4,#6c80f5,#ff5d8f)';
+  } else {
+    el.classList.remove('absolute-frame');
+    el.style.background = 'linear-gradient(135deg,' + ri.c1 + ',' + ri.c2 + ')';
+  }
+}
+function pfDisplayName() {
+  if (!tgUser) return 'Игрок';
+  const n = ((tgUser.first_name || '') + (tgUser.last_name ? ' ' + tgUser.last_name : '')).trim();
+  return n || (tgUser.username ? '@' + tgUser.username : 'Игрок');
+}
+function setAvatar(el) {
+  if (!el) return;
+  if (tgUser && tgUser.photo_url) { el.style.backgroundImage = 'url("' + tgUser.photo_url + '")'; el.textContent = ''; }
+  else { el.style.backgroundImage = ''; el.textContent = (tgUser && tgUser.first_name ? tgUser.first_name[0] : 'И').toUpperCase(); }
+}
+
+// окно профиля на экране выбора соперника
+function renderProfile() {
+  const ri = rankInfo(getXP());
+  const nameEl = document.getElementById('pf-name'); if (nameEl) nameEl.textContent = pfDisplayName();
+  setAvatar(document.getElementById('pf-avatar'));
+  styleFrame(document.getElementById('pf-frame'), ri);
+  const rk = document.getElementById('pf-rank'); if (rk) { rk.textContent = ri.name; rk.style.color = ri.c1; }
+  const fill = document.getElementById('pf-xp-fill');
+  if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
+}
+
+// ---- оверлей конца раунда ----
+function applyOverlayRank(ri) {
+  styleFrame(document.getElementById('ov-frame'), ri);
+  const rn = document.getElementById('ov-rank-name'); if (rn) { rn.textContent = ri.name; rn.style.color = '#fff'; }
+  const fill = document.getElementById('ov-xp-fill');
+  if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
+}
+function popRankUp(ri, catChanged) {
+  const ru = document.getElementById('ov-rankup');
+  ru.textContent = catChanged ? ('Новая лига — ' + ri.catName + '!') : 'Повышение ранга!';
+  ru.style.color = ri.c1;
+  ru.classList.remove('show'); void ru.offsetWidth; ru.classList.add('show');
+  const frame = document.getElementById('ov-frame');
+  frame.classList.remove('flash'); void frame.offsetWidth; frame.classList.add('flash');
+  if (catChanged) {
+    const burst = document.getElementById('ov-cat-burst');
+    burst.style.background = 'radial-gradient(circle,' + hexA(ri.c1, 0.5) + ', transparent 70%)';
+    burst.classList.remove('go'); void burst.offsetWidth; burst.classList.add('go');
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
+  }
+}
+function animateXpGain(before, gained) {
+  const gainEl = document.getElementById('ov-xp-gain');
+  gainEl.textContent = '+' + gained + ' XP';
+  gainEl.classList.add('show');
+  if (gained <= 0) { applyOverlayRank(rankInfo(before)); return; }
+  const target = before + gained;
+  const dur = Math.min(2800, 1100 + gained * 1.0);
+  const start = performance.now();
+  let lastIndex = rankInfo(before).index;
+  let lastCat = rankInfo(before).cat;
+  function frame(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const val = before + (target - before) * eased;
+    const ri = rankInfo(val);
+    if (ri.index !== lastIndex) {
+      popRankUp(ri, ri.cat !== lastCat);
+      lastIndex = ri.index; lastCat = ri.cat;
+    }
+    applyOverlayRank(ri);
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+function showResultOverlay(win, before, gained) {
+  const overlay = document.getElementById('overlay');
+  const title = document.getElementById('overlay-title');
+  const ovxp = document.getElementById('ov-xp');
+  const btn = document.getElementById('overlay-btn');
+  title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
+  overlay.classList.toggle('lose', !win);
+  overlay.classList.remove('settled');
+  ovxp.classList.remove('show');
+  document.getElementById('ov-rankup').classList.remove('show');
+  document.getElementById('ov-cat-burst').classList.remove('go');
+  document.getElementById('ov-frame').classList.remove('flash');
+  btn.classList.remove('show');
+  btn.textContent = 'Ещё раз';
+  applyOverlayRank(rankInfo(before));
+  setAvatar(document.getElementById('ov-ava'));
+  document.getElementById('ov-xp-gain').textContent = '';
+  document.getElementById('ov-xp-gain').classList.remove('show');
+  overlay.classList.remove('hidden');
+  setTimeout(() => overlay.classList.add('settled'), 1100);
+  setTimeout(() => ovxp.classList.add('show'), 1450);
+  setTimeout(() => animateXpGain(before, gained), 1750);
+  setTimeout(() => btn.classList.add('show'), 2050);
+}
+
+renderProfile();
