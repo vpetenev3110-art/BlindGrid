@@ -794,28 +794,48 @@
   /* ===== ЗМЕЙКА ===== */
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 6px;
-    padding: 4px 16px 14px; overflow: hidden; touch-action: none;
-    --snake-w: min(80vw, 252px);
+    align-items: center; justify-content: center; gap: 4px;
+    padding: 2px 14px 14px; overflow: hidden; touch-action: none;
   }
   .snake-board-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
-  .snake-board-wrap .board-label { max-width: var(--snake-w); width: 100%; }
+  .mini-wrap { --snake-w: min(40vw, 140px); }
+  .big-wrap  { --snake-w: min(90vw, 360px); }
+  .snake-board-wrap .board-label { max-width: var(--snake-w); width: 100%; margin: 0 auto 4px; }
   .snake-grid {
+    position: relative;
     width: 100%; max-width: var(--snake-w); aspect-ratio: 1; margin: 0 auto;
-    display: grid; grid-template-columns: repeat(11, 1fr); gap: 3px; padding: 6px;
+    display: grid; grid-template-columns: repeat(11, 1fr); gap: 0; padding: 5px;
     border-radius: 16px; background: var(--panel-bg, rgba(255,255,255,0.4));
     box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06));
   }
-  .snake-cell { aspect-ratio: 1; border-radius: 4px; background: var(--btn-soft-bg); transition: background 0.07s linear; }
-  .snake-cell.body-me { background: linear-gradient(140deg, #62d3cd, #4fcac4); }
-  .snake-cell.head-me { background: linear-gradient(140deg, #4fcac4, #2bb3ac); box-shadow: 0 0 6px rgba(79,202,196,0.55); border-radius: 6px; }
-  .snake-cell.body-ai { background: linear-gradient(140deg, #9d8fff, #8b7cff); }
-  .snake-cell.head-ai { background: linear-gradient(140deg, #8b7cff, #6c5ce0); box-shadow: 0 0 6px rgba(139,124,255,0.55); border-radius: 6px; }
-  .snake-cell.fruit { background: linear-gradient(140deg, #ff8c97, #ff5d8f); box-shadow: 0 0 7px rgba(255,93,115,0.6); border-radius: 50%; transform: scale(0.74); }
-  #snake-divider { height: 4px; }
-  .snake-hearts { display: inline-flex; gap: 4px; align-items: center; }
-  .snake-hearts svg { width: 15px; height: 15px; display: block; }
-  .snake-hearts .lost { opacity: 0.25; }
+  /* пустые клетки невидимы — поле выглядит цельной панелью; тело змейки соединено (без зазоров) */
+  .snake-cell { aspect-ratio: 1; background: transparent; }
+  .snake-cell.seg { border-radius: 2px; }
+  .snake-cell.head { border-radius: 30%; transform: scale(1.24); z-index: 3; position: relative;
+    box-shadow: 0 0 8px rgba(0,0,0,0.18); }
+  .snake-cell.head.grow { animation: snake-grow 0.2s ease; }
+  @keyframes snake-grow { 0% { transform: scale(0.7); } 60% { transform: scale(1.36); } 100% { transform: scale(1.24); } }
+  .snake-cell.fruit { background: radial-gradient(circle at 38% 34%, #ffa6ad, #ff5d8f 70%); box-shadow: 0 0 7px rgba(255,93,115,0.6);
+    border-radius: 50%; transform: scale(0.66); z-index: 2; }
+  #snake-divider { height: 6px; }
+  /* затемнение поля + отсчёт */
+  .snake-dim {
+    position: absolute; inset: 0; border-radius: 16px; z-index: 5;
+    background: rgba(10,8,20,0.55); backdrop-filter: blur(1px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+  }
+  .snake-dim.show { opacity: 1; }
+  .snake-num { font-family: 'Fredoka', sans-serif; font-weight: 700; color: #fff;
+    font-size: 12vw; line-height: 1; text-shadow: 0 4px 18px rgba(0,0,0,0.5);
+    animation: snake-num-pop 0.9s ease; }
+  .mini .snake-num { font-size: 7vw; }
+  @keyframes snake-num-pop { 0% { transform: scale(0.4); opacity: 0; } 30% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  /* кружки-жизни (цвет как у прогресс-бара флота) */
+  .snake-lives { display: inline-flex; gap: 5px; align-items: center; }
+  .snake-lives i { width: 11px; height: 11px; border-radius: 50%; background: var(--sunk);
+    box-shadow: 0 0 5px color-mix(in srgb, var(--sunk) 60%, transparent); transition: opacity 0.3s ease, transform 0.3s ease; }
+  .snake-lives i.lost { opacity: 0.2; transform: scale(0.8); box-shadow: none; }
 
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   .pf-window {
@@ -867,7 +887,7 @@
   #overlay p { font-size: 13px; color: var(--ink-soft); max-width: 240px; line-height: 1.5; }
   #overlay p:empty { display: none; }
   /* ===== АНИМАЦИЯ КОНЦА РАУНДА: РЕЗУЛЬТАТ + ОПЫТ ===== */
-  #overlay { gap: 18px; }
+  #overlay { gap: 18px; padding: 30px 0 150px; }
   #ov-result { display: flex; align-items: center; justify-content: center;
     transition: transform 0.9s cubic-bezier(.25,.9,.3,1); }
   #overlay.settled #ov-result { transform: translateY(-4px) scale(0.6); }
@@ -891,6 +911,7 @@
     0% { transform: translate(-50%, -50%) translate(0, 0) scale(1); opacity: 1; }
     100% { transform: translate(-50%, -50%) translate(var(--dx, 0), var(--dy, 0)) scale(0.3) rotate(180deg); opacity: 0; }
   }
+  #ov-frame-wrap { width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   #ov-frame { border-radius: 18px; padding: 3px; flex-shrink: 0;
     transition: padding 0.4s ease, box-shadow 0.45s ease, background 0.45s ease; }
   #ov-frame.flash { animation: ov-frame-flash 0.85s ease; }
@@ -912,10 +933,17 @@
   #ov-xp-bar { width: 100%; height: 12px; border-radius: 999px; overflow: hidden;
     background: rgba(255,255,255,0.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.13); }
   #ov-xp-fill { display: block; height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg,#c8804a,#e6a96f); }
+  #ov-tally { display: none; align-items: center; gap: 7px; font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 17px; color: #fff; min-height: 22px; }
+  #overlay.is-snake #ov-tally { display: flex; }
+  #ov-tally .ov-fruit { width: 15px; height: 15px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 34%, #ffa6ad, #ff5d8f 70%); box-shadow: 0 0 6px rgba(255,93,115,0.6); }
   #ov-xp-gain { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: #fff; opacity: 0;
-    transition: opacity 0.45s ease; }
+    transition: opacity 0.45s ease; min-height: 19px; }
   #ov-xp-gain.show { opacity: 1; }
-  #ov-actions { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+  #ov-xp-gain.minus { color: #ff8095; }
+  /* кнопки закреплены у низа — появление не влияет на остальные элементы */
+  #ov-actions { position: absolute; left: 0; right: 0; bottom: 30px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
   #ov-actions .menu-btn { opacity: 0; transform: translateY(10px); pointer-events: none;
     transition: opacity 0.4s ease, transform 0.4s ease, background 0.2s ease; }
   #overlay.act-show #ov-actions .menu-btn { opacity: 1; transform: translateY(0); pointer-events: auto; }

@@ -1355,6 +1355,85 @@ function animateXpGain(before, gained) {
   }
   requestAnimationFrame(frame);
 }
+// плавный налив бара ранга в любую сторону (для змейки опыт может уходить в минус)
+function animateXpBar(before, target, onDone) {
+  const dur = Math.min(3600, 1300 + Math.abs(target - before) * 1.3);
+  const start = performance.now();
+  let lastIndex = rankInfo(before).index;
+  let lastCat = rankInfo(before).cat;
+  function frame(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const val = before + (target - before) * eased;
+    const ri = rankInfo(val);
+    if (ri.index > lastIndex) { popRankUp(ri, ri.cat !== lastCat); }
+    lastIndex = ri.index; lastCat = ri.cat;
+    applyOverlayRank(ri);
+    if (t < 1) requestAnimationFrame(frame);
+    else if (onDone) onDone();
+  }
+  requestAnimationFrame(frame);
+}
+
+// результат раунда змейки: подсчёт фруктов → перевод в опыт
+function showSnakeResult(win, fruits) {
+  const before = getXP();
+  const base = win ? 0 : -100;
+  const gained = base + fruits * 10;
+  const target = Math.max(0, before + gained);
+  setXP(target);
+
+  const overlay = document.getElementById('overlay');
+  const title = document.getElementById('overlay-title');
+  const ovxp = document.getElementById('ov-xp');
+  const tally = document.getElementById('ov-tally');
+  const tallyN = document.getElementById('ov-tally-n');
+  const gainEl = document.getElementById('ov-xp-gain');
+  title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
+  overlay.classList.toggle('lose', !win);
+  overlay.classList.add('is-snake');
+  overlay.classList.remove('settled', 'act-show');
+  ovxp.classList.remove('show');
+  document.getElementById('ov-rankup').classList.remove('show');
+  document.getElementById('ov-cat-burst').classList.remove('go');
+  document.getElementById('ov-frame').classList.remove('flash');
+  document.getElementById('overlay-btn').textContent = 'Ещё раз';
+  applyOverlayRank(rankInfo(before));
+  setAvatar(document.getElementById('ov-ava'));
+  tallyN.textContent = fruits;
+  gainEl.classList.remove('show', 'minus');
+  let running = base;
+  gainEl.textContent = (running >= 0 ? '+' : '−') + Math.abs(running) + ' XP';
+  gainEl.classList.toggle('minus', running < 0);
+  overlay.classList.remove('hidden');
+
+  setTimeout(() => overlay.classList.add('settled'), 1200);
+  setTimeout(() => { ovxp.classList.add('show'); gainEl.classList.add('show'); }, 1650);
+
+  // подсчёт: по одному фрукту переводим в +10 опыта
+  setTimeout(() => {
+    let left = fruits;
+    const step = () => {
+      if (left <= 0) {
+        gainEl.textContent = (gained >= 0 ? '+' : '−') + Math.abs(gained) + ' XP';
+        gainEl.classList.toggle('minus', gained < 0);
+        setTimeout(() => animateXpBar(before, target, () => {
+          setTimeout(() => overlay.classList.add('act-show'), 250);
+        }), 350);
+        return;
+      }
+      left--;
+      running += 10;
+      tallyN.textContent = left;
+      gainEl.textContent = (running >= 0 ? '+' : '−') + Math.abs(running) + ' XP';
+      gainEl.classList.toggle('minus', running < 0);
+      try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+      setTimeout(step, 170);
+    };
+    step();
+  }, 2150);
+}
+
 function showResultOverlay(win, before, gained) {
   const overlay = document.getElementById('overlay');
   const title = document.getElementById('overlay-title');
@@ -1362,6 +1441,7 @@ function showResultOverlay(win, before, gained) {
   const btn = document.getElementById('overlay-btn');
   title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
   overlay.classList.toggle('lose', !win);
+  overlay.classList.remove('is-snake');
   overlay.classList.remove('settled');
   overlay.classList.remove('act-show');
   ovxp.classList.remove('show');
@@ -1384,39 +1464,55 @@ renderProfile();
 
 // ===================== РЕЖИМ «ЗМЕЙКА» =====================
 const SNAKE_N = 11;
-const SNAKE_TICK = 165;
+const SNAKE_TICK = 170;
+const SNAKE_LIVES = 3;
+const SNAKE_COL = { me: '#2bb3ac', ai: '#8b7cff', blue: '#3b82f6', red: '#ef4444' };
 let snakeState = null;
 
 function buildSnakeGrid(id) {
   const g = document.getElementById(id);
-  if (!g) return;
-  if (g.childElementCount === SNAKE_N * SNAKE_N) return; // строим один раз
-  g.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  for (let i = 0; i < SNAKE_N * SNAKE_N; i++) {
-    const c = document.createElement('div');
-    c.className = 'snake-cell';
-    frag.appendChild(c);
+  if (!g) return null;
+  if (!g.querySelector('.snake-dim')) {
+    g.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < SNAKE_N * SNAKE_N; i++) {
+      const c = document.createElement('div');
+      c.className = 'snake-cell';
+      frag.appendChild(c);
+    }
+    g.appendChild(frag);
+    const dim = document.createElement('div');
+    dim.className = 'snake-dim';
+    const num = document.createElement('span');
+    num.className = 'snake-num';
+    dim.appendChild(num);
+    g.appendChild(dim);
   }
-  g.appendChild(frag);
+  return g;
 }
 
-function snakeNewSide(gridId) {
-  const mid = Math.floor(SNAKE_N / 2);
+function snakeMakeSide(gridId, who) {
+  const g = document.getElementById(gridId);
   return {
-    gridId,
-    cells: [{ r: mid, c: mid + 1 }, { r: mid, c: mid }, { r: mid, c: mid - 1 }],
-    dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
-    fruit: null, hearts: 2, alive: true,
-    els: document.getElementById(gridId).children
+    who, gridId,
+    els: g.querySelectorAll('.snake-cell'),
+    dim: g.querySelector('.snake-dim'),
+    num: g.querySelector('.snake-num'),
+    cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
+    fruit: null, lives: SNAKE_LIVES, state: 'alive', color: SNAKE_COL[who],
+    fruitsEaten: 0
   };
 }
 
-function snakeRespawn(side) {
+function snakeCenterStart() {
   const mid = Math.floor(SNAKE_N / 2);
-  side.cells = [{ r: mid, c: mid + 1 }, { r: mid, c: mid }, { r: mid, c: mid - 1 }];
-  side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
-  snakeSpawnFruit(side);
+  return [{ r: mid, c: mid + 1 }, { r: mid, c: mid }, { r: mid, c: mid - 1 }];
+}
+
+function snakeColorFor(side) {
+  if (side.lives >= SNAKE_LIVES) return SNAKE_COL[side.who];
+  if (side.lives === 2) return SNAKE_COL.blue;
+  return SNAKE_COL.red;
 }
 
 function snakeSpawnFruit(side) {
@@ -1428,14 +1524,35 @@ function snakeSpawnFruit(side) {
   side.fruit = free.length ? free[Math.floor(Math.random() * free.length)] : null;
 }
 
-function snakePaint(side, headClass, bodyClass) {
+function snakeClearCells(side) {
   const els = side.els;
-  if (!els) return;
-  for (let i = 0; i < els.length; i++) els[i].className = 'snake-cell';
-  if (side.fruit) els[side.fruit.r * SNAKE_N + side.fruit.c].classList.add('fruit');
+  for (let i = 0; i < els.length; i++) { els[i].className = 'snake-cell'; els[i].style.cssText = ''; }
+}
+
+function snakePaint(side, growHead) {
+  const els = side.els, N = SNAKE_N;
+  snakeClearCells(side);
+  if (side.fruit) {
+    const f = els[side.fruit.r * N + side.fruit.c];
+    if (f) f.className = 'snake-cell fruit';
+  }
+  const last = side.cells.length - 1;
   side.cells.forEach((p, idx) => {
-    const i = p.r * SNAKE_N + p.c;
-    if (els[i]) { els[i].className = 'snake-cell ' + (idx === 0 ? headClass : bodyClass); }
+    const e = els[p.r * N + p.c];
+    if (!e) return;
+    e.style.background = side.color;
+    if (idx === 0) {
+      e.className = 'snake-cell seg head' + (growHead ? ' grow' : '');
+    } else if (idx === last) {
+      const prev = side.cells[idx - 1];
+      const dr = p.r - prev.r, dc = p.c - prev.c;
+      const deg = dc === 1 ? 90 : dc === -1 ? 270 : dr === 1 ? 180 : 0;
+      e.className = 'snake-cell seg tail';
+      e.style.clipPath = 'polygon(50% 4%, 96% 96%, 4% 96%)';
+      e.style.transform = 'rotate(' + deg + 'deg)';
+    } else {
+      e.className = 'snake-cell seg';
+    }
   });
 }
 
@@ -1472,47 +1589,115 @@ function aiPickDir(side) {
   return pool[0] || side.dir;
 }
 
-function snakeHeartSvg(lost) {
-  return '<svg class="' + (lost ? 'lost' : '') + '" viewBox="0 0 24 24" fill="#ff5d8f"><path d="M12 21s-7.5-5.9-7.5-11.2A3.8 3.8 0 0 1 12 7.2 3.8 3.8 0 0 1 19.5 9.8C19.5 15.1 12 21 12 21z"/></svg>';
-}
-function snakeRenderHearts() {
+function snakeRenderLives() {
   if (!snakeState) return;
-  const draw = (id, hearts) => {
+  const draw = (id, lives) => {
+    const el = document.getElementById(id); if (!el) return;
     let h = '';
-    for (let i = 0; i < 2; i++) h += snakeHeartSvg(i >= hearts);
-    const el = document.getElementById(id); if (el) el.innerHTML = h;
+    for (let i = 0; i < SNAKE_LIVES; i++) h += '<i class="' + (i < lives ? '' : 'lost') + '"></i>';
+    el.innerHTML = h;
   };
-  draw('snake-ai-hearts', snakeState.ai.hearts);
-  draw('snake-me-hearts', snakeState.me.hearts);
+  draw('snake-ai-hearts', snakeState.ai.lives);
+  draw('snake-me-hearts', snakeState.me.lives);
+}
+
+// плавная смена цвета тела от головы к хвосту (волной)
+function snakeSweepColor(side, color, onDone) {
+  side.cells.forEach((p, idx) => {
+    const e = side.els[p.r * SNAKE_N + p.c];
+    if (!e) return;
+    e.style.transition = 'background-color 0.3s ease ' + (idx * 0.05).toFixed(2) + 's';
+    e.style.background = color;
+  });
+  setTimeout(onDone, Math.min(360 + side.cells.length * 50, 1300));
+}
+
+// растворение тела от головы к хвосту
+function snakeDissolve(side, onDone) {
+  side.cells.forEach((p, idx) => {
+    const e = side.els[p.r * SNAKE_N + p.c];
+    if (!e) return;
+    const d = (idx * 0.045).toFixed(2);
+    e.style.transition = 'transform 0.4s ease ' + d + 's, opacity 0.4s ease ' + d + 's';
+    e.style.transformOrigin = 'center';
+    e.style.transform = 'scale(0)';
+    e.style.opacity = '0';
+  });
+  setTimeout(onDone, Math.min(420 + side.cells.length * 45, 1500));
+}
+
+function snakeCountdownOn(side, onDone) {
+  side.dim.classList.add('show');
+  let n = 3;
+  side.num.textContent = n;
+  side.num.style.animation = 'none'; void side.num.offsetWidth; side.num.style.animation = '';
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(iv);
+      side.dim.classList.remove('show');
+      side.num.textContent = '';
+      onDone();
+    } else {
+      side.num.textContent = n;
+      side.num.style.animation = 'none'; void side.num.offsetWidth; side.num.style.animation = '';
+    }
+  }, 1000);
+}
+
+function snakeStartDeath(side) {
+  side.state = 'dying';
+  side.lives--;
+  snakeRenderLives();
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(side.who === 'me' ? 'warning' : 'success'); } catch (e) {}
+  if (side.lives <= 0) {
+    // финальное столкновение — красная змейка растворяется
+    side.color = SNAKE_COL.red;
+    snakeSweepColor(side, SNAKE_COL.red, () => {
+      snakeDissolve(side, () => { side.state = 'dead'; snakeCheckOver(); });
+    });
+  } else {
+    const newColor = snakeColorFor(side); // 2 жизни → синий, 1 → красный
+    snakeSweepColor(side, newColor, () => {
+      side.color = newColor;
+      side.dim.classList.add('show');
+      snakeCountdownOn(side, () => {
+        side.cells = snakeCenterStart();
+        side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
+        snakeSpawnFruit(side);
+        snakePaint(side);
+        side.state = 'alive';
+      });
+    });
+  }
+}
+
+function snakeCheckOver() {
+  if (!snakeState || snakeState.ended) return;
+  const me = snakeState.me, ai = snakeState.ai;
+  if (me.state === 'dead' || ai.state === 'dead') {
+    snakeState.ended = true;
+    snakeStop();
+    const playerWon = me.state !== 'dead' && ai.state === 'dead';
+    setTimeout(() => snakeEnd(playerWon, me.fruitsEaten), 750);
+  }
 }
 
 function snakeTick() {
   if (!snakeState || !snakeState.running) return;
-  const me = snakeState.me, ai = snakeState.ai;
-  me.dir = me.nextDir;
-  if (snakeAdvance(me, me.dir) === 'crash') {
-    me.hearts--; if (me.hearts <= 0) me.alive = false; else snakeRespawn(me);
-  }
-  ai.dir = aiPickDir(ai);
-  if (snakeAdvance(ai, ai.dir) === 'crash') {
-    ai.hearts--; if (ai.hearts <= 0) ai.alive = false; else snakeRespawn(ai);
-  }
-  snakePaint(me, 'head-me', 'body-me');
-  snakePaint(ai, 'head-ai', 'body-ai');
-  snakeRenderHearts();
-  if (!me.alive || !ai.alive) {
-    const playerWon = me.alive && !ai.alive;
-    snakeStop();
-    setTimeout(() => snakeEnd(playerWon), 550);
-  }
+  [snakeState.me, snakeState.ai].forEach(side => {
+    if (side.state !== 'alive') return;
+    side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
+    const res = snakeAdvance(side, side.dir);
+    if (res === 'crash') { snakeStartDeath(side); return; }
+    if (res === 'eat' && side.who === 'me') side.fruitsEaten++;
+    snakePaint(side, res === 'eat');
+  });
 }
 
-function snakeEnd(win) {
-  const before = getXP();
-  const gained = win ? 100 : 0;
-  if (gained) setXP(before + gained);
+function snakeEnd(win, fruits) {
   document.getElementById('snake-screen').classList.add('hidden');
-  setTimeout(() => { showResultOverlay(win, before, gained); launchConfetti(win); }, 80);
+  setTimeout(() => { showSnakeResult(win, fruits); launchConfetti(win); }, 90);
 }
 
 function snakeStop() {
@@ -1526,20 +1711,41 @@ function startSnake() {
   document.getElementById('opp-select').classList.add('hidden');
   buildSnakeGrid('snake-ai');
   buildSnakeGrid('snake-me');
-  snakeState = { running: true, interval: null, me: snakeNewSide('snake-me'), ai: snakeNewSide('snake-ai') };
-  snakeSpawnFruit(snakeState.me);
-  snakeSpawnFruit(snakeState.ai);
-  snakePaint(snakeState.me, 'head-me', 'body-me');
-  snakePaint(snakeState.ai, 'head-ai', 'body-ai');
-  snakeRenderHearts();
+  const me = snakeMakeSide('snake-me', 'me');
+  const ai = snakeMakeSide('snake-ai', 'ai');
+  snakeState = { running: false, ended: false, interval: null, me, ai };
+  [me, ai].forEach(side => {
+    side.cells = snakeCenterStart();
+    snakeClearCells(side);
+    snakeSpawnFruit(side);
+    snakePaint(side);
+  });
+  snakeRenderLives();
   document.getElementById('snake-screen').classList.remove('hidden');
-  clearInterval(snakeState.interval);
-  snakeState.interval = setInterval(snakeTick, SNAKE_TICK);
+  // стартовый отсчёт 3-2-1 на обоих полях, потом поехали
+  me.dim.classList.add('show'); ai.dim.classList.add('show');
+  let n = 3;
+  const setNum = v => {
+    me.num.textContent = v; ai.num.textContent = v;
+    [me.num, ai.num].forEach(el => { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
+  };
+  setNum(n);
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(iv);
+      me.dim.classList.remove('show'); ai.dim.classList.remove('show');
+      me.num.textContent = ''; ai.num.textContent = '';
+      snakeState.running = true;
+      snakeState.interval = setInterval(snakeTick, SNAKE_TICK);
+    } else setNum(n);
+  }, 1000);
 }
 
 function snakeSetDir(r, c) {
   if (!snakeState || !snakeState.running) return;
   const me = snakeState.me;
+  if (me.state !== 'alive') return;
   if (r === -me.dir.r && c === -me.dir.c) return; // нельзя развернуться на 180°
   me.nextDir = { r, c };
 }
