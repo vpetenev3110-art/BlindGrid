@@ -65,6 +65,10 @@ function applyMode(mode) {
   const CELL = SIZE >= 10 ? 33 : 35;
   const boardW = SIZE * CELL + (SIZE - 1) * GAP + PAD;
   document.documentElement.style.setProperty('--board-w', boardW + 'px');
+  // уменьшенное «твоё поле» в бою — оно информационное, по нему не кликают
+  const MINI_CELL = SIZE >= 10 ? 18 : 20;
+  const miniW = SIZE * MINI_CELL + (SIZE - 1) * GAP + PAD;
+  document.documentElement.style.setProperty('--board-w-mini', miniW + 'px');
   document.querySelectorAll('.grid').forEach(g => {
     g.style.gridTemplateColumns = 'repeat(' + SIZE + ', 1fr)';
   });
