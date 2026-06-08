@@ -144,6 +144,13 @@
     color: var(--ink);
     padding-left: 2px;
   }
+  #app-version {
+    align-self: flex-end;
+    margin-left: 9px; margin-bottom: 3px;
+    font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 10px; letter-spacing: 0.5px;
+    color: var(--ink-soft); opacity: 0.55;
+  }
   .logo-text {
     font-family: 'Fredoka', sans-serif;
     font-weight: 700; font-size: 23px;
