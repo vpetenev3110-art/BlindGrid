@@ -1051,7 +1051,15 @@ window.addEventListener('resize', () => {
 
 document.getElementById('overlay-btn').addEventListener('click', () => {
   document.getElementById('overlay').classList.add('hidden');
-  showMenu();
+  applyMode(lastMode);
+  startPlacement();
+});
+document.getElementById('overlay-back').addEventListener('click', () => {
+  document.getElementById('overlay').classList.add('hidden');
+  setGameUIHidden(true);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  renderProfile();
+  document.getElementById('opp-select').classList.remove('hidden');
 });
 document.getElementById('play-btn').addEventListener('click', startBattle);
 
@@ -1062,7 +1070,7 @@ function showMenu() {
   const menu = document.getElementById('menu');
   menu.classList.remove('hidden');
   // перезапуск анимаций лого/кнопок
-  menu.querySelectorAll('.logo-cross, .logo-text, .logo-cube, #menu-buttons').forEach(el => {
+  menu.querySelectorAll('.logo-cross, .logo-text, .logo-cube').forEach(el => {
     el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
   });
 }
@@ -1089,8 +1097,10 @@ document.getElementById('custom-back-x').addEventListener('click', () => {
   document.getElementById('custom-select').classList.add('hidden');
   showMenu();
 });
+const THEME_KEY = 'bg_theme_v1';
 function applyTheme(theme) {
   document.body.classList.toggle('theme-dark', theme === 'dark');
+  try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
   buildStylePreviews();
 }
 document.getElementById('theme-switch').addEventListener('click', () => {
@@ -1118,7 +1128,9 @@ function showModeSelect() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('mode-select').classList.remove('hidden');
 }
+let lastMode = 'fast';
 function startGameWithMode(mode) {
+  lastMode = mode;
   applyMode(mode);
   document.getElementById('mode-select').classList.add('hidden');
   startPlacement();
@@ -1138,6 +1150,12 @@ syncStyleButtons();
 renderPlaceControls();
 applyMode('fast');
 startPlacement();
+// тема: сохранённая, иначе тёмная по умолчанию
+(function () {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+  applyTheme(saved || 'dark');
+})();
 setGameUIHidden(true);
 document.getElementById('menu').classList.remove('hidden');
 
@@ -1282,11 +1300,11 @@ function showResultOverlay(win, before, gained) {
   title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
   overlay.classList.toggle('lose', !win);
   overlay.classList.remove('settled');
+  overlay.classList.remove('act-show');
   ovxp.classList.remove('show');
   document.getElementById('ov-rankup').classList.remove('show');
   document.getElementById('ov-cat-burst').classList.remove('go');
   document.getElementById('ov-frame').classList.remove('flash');
-  btn.classList.remove('show');
   btn.textContent = 'Ещё раз';
   applyOverlayRank(rankInfo(before));
   setAvatar(document.getElementById('ov-ava'));
@@ -1296,7 +1314,7 @@ function showResultOverlay(win, before, gained) {
   setTimeout(() => overlay.classList.add('settled'), 1100);
   setTimeout(() => ovxp.classList.add('show'), 1450);
   setTimeout(() => animateXpGain(before, gained), 1750);
-  setTimeout(() => btn.classList.add('show'), 2050);
+  setTimeout(() => overlay.classList.add('act-show'), 2050);
 }
 
 renderProfile();

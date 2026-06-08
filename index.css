@@ -543,52 +543,34 @@
     animation: menu-fade 0.6s ease 0.7s both;
   }
   #menu-buttons {
-    margin-top: 56px; display: flex; flex-direction: column; gap: 22px;
+    margin-top: 56px; display: flex; flex-direction: column; gap: 16px;
     width: 100%; max-width: none; padding: 0;
-    animation: menu-rise 0.6s cubic-bezier(.25,.8,.3,1) 0.7s both;
   }
   .menu-btn {
-    width: 100%; display: flex; align-items: center; justify-content: flex-start; gap: 12px;
-    padding: 16px 18px; border-radius: 999px;
-    font-size: 14px; letter-spacing: 1px; text-transform: uppercase;
-    white-space: nowrap;
+    width: 100%; display: flex; align-items: center; gap: 13px;
+    letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
     transition: transform 0.16s ease, background 0.22s ease, border-color 0.22s ease;
   }
-  /* кнопки главного меню — во всю ширину экрана, мягкая размытая граница */
-  #menu-buttons .menu-btn {
-    justify-content: center; gap: 13px;
-    padding: 20px 24px; border-radius: 22px; font-size: 14.5px;
+  /* полосы во всю ширину экрана, без скруглений, чуть толще; .btn.menu-btn бьёт базовый .btn */
+  .btn.menu-btn { justify-content: center; padding: 23px 24px; border-radius: 0; font-size: 14.5px; }
+  .menu-ico { width: 22px; height: 22px; flex-shrink: 0; }
+  .btn.menu-btn-secondary {
+    color: var(--bc, var(--ink-soft)) !important;
+    border: 1.6px solid color-mix(in srgb, var(--bc, #6b6485) 32%, transparent) !important;
+    background: var(--bbg, rgba(107,100,133,0.10)) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16) !important;
   }
-  #menu-buttons .menu-btn-secondary {
-    border: 1.5px solid color-mix(in srgb, var(--bc, #6b6485) 30%, transparent) !important;
-    background: var(--bbg, rgba(107,100,133,0.08)) !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 24px -14px rgba(52,48,74,0.55) !important;
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  }
-  #menu-buttons .menu-btn-secondary:hover {
-    transform: translateY(-2px) scale(1.01);
+  .btn.menu-btn-secondary:hover {
+    transform: scale(1.01);
+    background: var(--bbg-h, rgba(107,100,133,0.18)) !important;
     border-color: color-mix(in srgb, var(--bc, #6b6485) 55%, transparent) !important;
   }
-  #menu-buttons .menu-btn-secondary:active { transform: scale(0.985); }
-  .menu-ico { width: 22px; height: 22px; flex-shrink: 0; }
-  .menu-btn-secondary {
-    color: var(--bc, var(--ink-soft)) !important;
-    border: 3px solid var(--bc, var(--ink-soft)) !important;
-    background: var(--bbg, rgba(107,100,133,0.07)) !important;
-    box-shadow: none;
-  }
-  .menu-btn-secondary:hover {
-    transform: scale(1.03);
-    background: var(--bbg-h, rgba(107,100,133,0.13)) !important;
-  }
-  .menu-btn-secondary:active { transform: scale(0.99); }
+  .btn.menu-btn-secondary:active { transform: scale(0.99); }
   /* лёгкие оттенки на каждую кнопку */
   #menu-play     { --bc:#22847e; --bbg:rgba(34,132,126,0.13); --bbg-h:rgba(34,132,126,0.21); }
-  #menu-pvp      { --bc:#3f4fb0; --bbg:rgba(63,79,176,0.13); --bbg-h:rgba(63,79,176,0.21); }
   #menu-friends  { --bc:#b0741a; --bbg:rgba(176,116,26,0.13); --bbg-h:rgba(176,116,26,0.21); }
   #menu-settings { --bc:#a83e66; --bbg:rgba(168,62,102,0.13); --bbg-h:rgba(168,62,102,0.21); }
   @keyframes menu-fade { 0% { opacity: 0; } 100% { opacity: 1; } }
-  @keyframes menu-rise { 0% { opacity: 0; transform: translateY(18px); } 100% { opacity: 1; transform: translateY(0); } }
 
   /* ===== ВЫБОР РЕЖИМА / СОПЕРНИКА / КАСТОМИЗАЦИЯ ===== */
   #mode-select, #opp-select, #custom-select {
@@ -639,11 +621,11 @@
   .flat-back:active { transform: scale(0.97); }
   #mode-center, #opp-center, #custom-center {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 100%; padding: 0 30px;
+    width: 100%; padding: 0;
   }
   #mode-title, #opp-title, #custom-title {
     font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 27px;
-    letter-spacing: 1px; color: var(--ink); margin-bottom: 30px;
+    letter-spacing: 1px; color: var(--ink); margin-bottom: 30px; padding: 0 30px;
   }
   #custom-center { justify-content: flex-start; padding: 6px 22px 24px; gap: 0; overflow-y: auto; }
   #custom-head { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 22px; }
@@ -725,7 +707,7 @@
   .pv-ship { display: inline-flex; border-radius: 5px; overflow: hidden; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.06); }
   .pv-cell { width: 12px; height: 12px; }
   .pv-flower-ship svg { width: 100%; height: 100%; display: block; }
-  #mode-buttons, #opp-buttons { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 300px; }
+  #mode-buttons, #opp-buttons { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: none; }
   /* ===== КАРТОЧКА ПРОФИЛЯ ===== */
   #profile-card {
     position: absolute; top: 60px; right: 0; z-index: 2;
@@ -790,32 +772,35 @@
 
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   #pf-window {
-    position: absolute; top: 60px; right: 0; z-index: 2;
-    display: flex; align-items: center; gap: 12px;
-    padding: 10px 12px 10px 16px; border-radius: 18px 0 0 18px;
+    position: absolute; top: 14px; right: 0; z-index: 3;
+    display: flex; align-items: center; gap: 13px;
+    padding: 11px 14px 11px 18px; border-radius: 20px 0 0 20px;
     background: var(--panel-bg, rgba(255,255,255,0.5));
-    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.07)), -6px 6px 20px -10px rgba(52,48,74,0.4);
-    backdrop-filter: blur(8px); min-width: 210px;
+    box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.07)), -7px 7px 22px -10px rgba(52,48,74,0.45);
+    backdrop-filter: blur(8px); min-width: 262px;
   }
+  /* на экране соперника текст лого прячем — крестик-«назад» остаётся, окно профиля широкое */
+  #opp-select .mode-topbar .logo-text,
+  #opp-select .mode-topbar .logo-cube { display: none; }
   #opp-select:not(.hidden) #pf-window { animation: profile-slide 0.6s cubic-bezier(.22,1,.36,1) 0.1s both; }
   #pf-info { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; text-align: left; }
-  #pf-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; color: var(--ink);
+  #pf-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: var(--ink);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #pf-rank { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; }
-  #pf-xp { width: 100%; height: 7px; border-radius: 999px; overflow: hidden; background: var(--btn-soft-bg); }
+  #pf-rank { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase; }
+  #pf-xp { width: 100%; height: 8px; border-radius: 999px; overflow: hidden; background: var(--btn-soft-bg); }
   #pf-xp-fill { display: block; height: 100%; width: 0%; border-radius: 999px; transition: width 0.5s cubic-bezier(.25,.9,.3,1); }
-  #pf-frame { flex-shrink: 0; border-radius: 15px; padding: 3px;
+  #pf-frame { flex-shrink: 0; border-radius: 16px; padding: 3px;
     transition: padding 0.25s ease, box-shadow 0.3s ease, background 0.3s ease; }
-  #pf-avatar { width: 46px; height: 46px; border-radius: 12px; background-size: cover; background-position: center;
+  #pf-avatar { width: 52px; height: 52px; border-radius: 13px; background-size: cover; background-position: center;
     display: flex; align-items: center; justify-content: center; color: #fff;
-    font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 20px; background-color: #6c80f5; }
+    font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 22px; background-color: #6c80f5; }
 
   #overlay {
     position: absolute; inset: 0; z-index: 50;
     background: rgba(8, 6, 16, 0.94);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 22px; text-align: center; padding: 30px;
+    gap: 22px; text-align: center; padding: 30px 0;
     backdrop-filter: blur(6px); transition: opacity 0.3s;
   }
   #overlay.hidden { opacity: 0; pointer-events: none; }
@@ -877,9 +862,12 @@
   #ov-xp-gain { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: #fff; opacity: 0; }
   #ov-xp-gain.show { opacity: 1; animation: ov-gain 0.5s cubic-bezier(.3,1.3,.5,1) both; }
   @keyframes ov-gain { 0% { transform: scale(0.6); } 100% { transform: scale(1); } }
-  #overlay-btn { opacity: 0; transform: translateY(10px); pointer-events: none;
+  #ov-actions { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+  #ov-actions .menu-btn { opacity: 0; transform: translateY(10px); pointer-events: none;
     transition: opacity 0.4s ease, transform 0.4s ease, background 0.2s ease; }
-  #overlay-btn.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  #overlay.act-show #ov-actions .menu-btn { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  #overlay-btn  { --bc:#1f9e7e; --bbg:rgba(31,158,126,0.16); --bbg-h:rgba(31,158,126,0.26); }
+  #overlay-back { --bc:#9aa1ab; --bbg:rgba(154,161,171,0.14); --bbg-h:rgba(154,161,171,0.24); }
   .btn {
     font-size: 16px;
     padding: 16px 50px; border-radius: 999px;
