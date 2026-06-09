@@ -1842,7 +1842,7 @@ function snakeDrawBody(group, pts, d, hitEyes) {
     const list = pts.slice(0, n - 1).map(p => p.x.toFixed(3) + ',' + p.y.toFixed(3)).join(' ');
     edges.push(svgEl('polyline', { class: 'snk-edge', points: list, 'stroke-width': EW, style: 'fill:none' }));
   }
-  edges.push(svgEl('path', { class: 'snk-edge', d: snakeHeadPath(h.x, h.y, 0.98, d, 0.49, 0.24) }));
+  edges.push(svgEl('path', { class: 'snk-edge', 'stroke-width': 0, d: snakeHeadPath(h.x, h.y, 0.98, d, 0.49, 0.24) }));
   const headFill = svgEl('path', { class: 'snk-head', d: snakeHeadPath(h.x, h.y, 0.84, d, 0.42, 0.18) });
   fills.push(headFill); waveEls.push(headFill);
   for (let i = 0; i < n - 2; i++) {
@@ -1858,7 +1858,7 @@ function snakeDrawBody(group, pts, d, hitEyes) {
       const b1 = [nb.x + px * hw, nb.y + py * hw], b2 = [nb.x - px * hw, nb.y - py * hw], tp = [tip.x + dx * ext, tip.y + dy * ext];
       return [b1, b2, tp].map(v => v[0].toFixed(3) + ',' + v[1].toFixed(3)).join(' ');
     };
-    edges.push(svgEl('polygon', { class: 'snk-edge', points: mkTail(0.40, 0.20) }));
+    edges.push(svgEl('polygon', { class: 'snk-edge', 'stroke-width': 0, points: mkTail(0.40, 0.20) }));
     const tailFill = svgEl('polygon', { class: 'snk-tail', points: mkTail(0.33, 0.12) });
     fills.push(tailFill); waveEls.push(tailFill);
   }
