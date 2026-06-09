@@ -817,10 +817,12 @@
     box-shadow: inset 0 0 0 1px rgba(52,48,74,0.05);
   }
   .snake-svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  /* фоновые клетки — как клетки морского боя */
-  .snk-bgc { fill: var(--cell); stroke: var(--grid-line); stroke-width: 0.045; }
+  /* фоновые клетки — как клетки морского боя, чуть темнее */
+  .snk-bgc { fill: color-mix(in srgb, var(--cell), #000 12%); stroke: var(--grid-line); stroke-width: 0.045; }
   /* тело — куб + мостик; цвет через --sc на svg, плавный переход */
   .snk-cube, .snk-br, .snk-tail { fill: var(--sc, #4fcac4); transition: fill 0.4s ease; }
+  .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.14; stroke-linejoin: round; stroke-linecap: round;
+    transition: fill 0.4s ease, stroke 0.4s ease; }
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
   .snk-fruit-dot { fill: var(--hit); }
   /* маркеры финальной смерти: белая точка → дырка цвета поля */

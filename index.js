@@ -1552,8 +1552,8 @@ function snakePaint(side) {
   for (let i = 0; i < side.cells.length - 1; i++) {
     const a = side.cells[i], b = side.cells[i + 1];
     let attrs;
-    if (a.r === b.r) attrs = { class: 'snk-br', x: Math.min(a.c, b.c) + 0.5, y: a.r + 0.24, width: 1, height: 0.52, rx: 0.1 };
-    else attrs = { class: 'snk-br', x: a.c + 0.24, y: Math.min(a.r, b.r) + 0.5, width: 0.52, height: 1, rx: 0.1 };
+    if (a.r === b.r) attrs = { class: 'snk-br', x: Math.min(a.c, b.c) + 0.5, y: a.r + 0.18, width: 1, height: 0.64, rx: 0.12 };
+    else attrs = { class: 'snk-br', x: a.c + 0.18, y: Math.min(a.r, b.r) + 0.5, width: 0.64, height: 1, rx: 0.12 };
     side.gBody.appendChild(svgEl('rect', attrs));
   }
   const last = side.cells.length - 1;
@@ -1674,7 +1674,7 @@ function snakeDeath(side) {
   snakeSetColor(side, col, col);
   setTimeout(() => {
     snakeCountdownOn(side, () => {
-      side.cells = snakeStartCells(deathLen);  // размер сохраняется
+      side.cells = snakeStartCells(3);  // после смерти змейка снова маленькая
       side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
       snakeSpawnFruit(side);
       snakePaint(side);
