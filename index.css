@@ -825,8 +825,8 @@
   /* тело — куб + мостик; цвет через --sc на svg, плавный переход */
   .snk-cube, .snk-br, .snk-tail { fill: var(--sc, #4fcac4); transition: fill 0.4s ease; }
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
-  .snk-eye { fill: rgba(20,16,32,0.42); transform-box: fill-box; transform-origin: center; }
-  .snk-eye-x line { stroke: rgba(22,18,32,0.8); stroke-width: 0.085; stroke-linecap: round; }
+  .snk-eye { fill: rgba(20,16,32,0.42); }
+  .snk-eye-x line { stroke: rgba(255,255,255,0.72); stroke-width: 0.085; stroke-linecap: round; }
   /* контур (как у фигур морского боя) — отдельный слой-силуэт под телом */
   .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
   .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.2; stroke-linejoin: round; stroke-linecap: round; }

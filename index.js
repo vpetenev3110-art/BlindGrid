@@ -1950,9 +1950,9 @@ function updateHunger(me) {
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const since = now - (me.hungerStart || now);
   if (me.state === 'alive' && since >= 3000) {
-    const secs = Math.floor(since / 1000);
-    if (n.textContent !== String(secs)) {
-      n.textContent = secs;
+    const left = Math.max(0, 5 - Math.floor(since / 1000));   // обратный отсчёт до ужимания
+    if (n.textContent !== String(left)) {
+      n.textContent = left;
       n.classList.remove('bump'); void n.offsetWidth; n.classList.add('bump');
     }
     el.classList.add('show');
