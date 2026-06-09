@@ -912,8 +912,7 @@
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   .pf-window {
     position: absolute; top: 72px; left: 8px; right: 8px; z-index: 3;
-    display: flex; flex-direction: column; gap: 9px;
-    padding: 11px 14px; border-radius: 13px;
+    padding: 11px 0 7px; border-radius: 13px; overflow: hidden;
     background: var(--panel-bg, rgba(255,255,255,0.5));
     box-shadow: 0 6px 18px -12px rgba(52,48,74,0.45);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -922,27 +921,27 @@
   #gametype-select:not(.hidden) .pf-window,
   #mode-select:not(.hidden) .pf-window { opacity: 1; }
   @keyframes pf-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: translateY(0); } }
-  .pf-head { display: flex; align-items: center; gap: 13px; }
-  .pf-ladder {
-    max-height: 124px; overflow-y: auto; overflow-x: hidden;
-    display: flex; flex-direction: column; gap: 4px;
-    padding-top: 9px; border-top: 1px solid rgba(120,110,160,0.16);
-    -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(120,110,160,0.45) transparent;
+  .pf-track {
+    display: flex; overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-  .pf-ladder::-webkit-scrollbar { width: 5px; }
-  .pf-ladder::-webkit-scrollbar-track { background: transparent; }
-  .pf-ladder::-webkit-scrollbar-thumb { background: rgba(120,110,160,0.42); border-radius: 999px; }
-  .pf-rung {
-    display: flex; align-items: center; gap: 9px;
-    padding: 5px 8px; border-radius: 8px; flex-shrink: 0;
-    font-family: 'Nunito', sans-serif; transition: opacity 0.2s;
+  .pf-track::-webkit-scrollbar { display: none; }
+  .pf-slide {
+    flex: 0 0 100%; width: 100%; box-sizing: border-box; scroll-snap-align: center;
+    display: flex; align-items: center; gap: 13px; padding: 0 16px;
+    transition: opacity 0.25s ease;
   }
-  .pf-rung-badge { width: 17px; height: 17px; border-radius: 5px; flex-shrink: 0; box-shadow: 0 1px 4px -1px rgba(0,0,0,0.35); }
-  .pf-rung-name { flex: 1; min-width: 0; font-weight: 800; font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pf-rung-need { font-weight: 700; font-size: 10px; color: var(--ink-soft); flex-shrink: 0; letter-spacing: 0.3px; }
-  .pf-rung.current { background: var(--btn-soft-bg); box-shadow: inset 0 0 0 1.5px rgba(120,110,160,0.22); }
-  .pf-rung.past .pf-rung-name { opacity: 0.66; }
-  .pf-rung.future { opacity: 0.4; }
+  .pf-slide.future { opacity: 0.52; }
+  .pf-scrollbar {
+    height: 4px; margin: 8px 16px 0; border-radius: 999px;
+    background: rgba(120,110,160,0.16); position: relative;
+  }
+  .pf-scrollbar-thumb {
+    position: absolute; top: 0; left: 0; height: 100%; width: 20%;
+    border-radius: 999px; background: rgba(120,110,160,0.5);
+    transition: left 0.1s linear, width 0.1s linear;
+  }
   .pf-info { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; text-align: left; }
   .pf-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: var(--ink);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1390,39 +1390,57 @@ function setAvatar(el) {
 }
 
 // окна профиля (экраны выбора соперника и режима)
-function renderLadder() {
-  const cur = rankInfo(getXP()).index;
-  let acc = 0;
-  const rows = RANKS.map((r, i) => {
-    const name = r.tier ? (r.catName + ' ' + ROMAN[r.tier]) : r.catName;
-    const cls = i < cur ? 'past' : (i === cur ? 'current' : 'future');
-    const need = i === 0 ? 'старт' : (r.need === Infinity && acc === 0 ? '∞' : acc.toLocaleString('ru-RU') + ' XP');
-    if (r.need !== Infinity) acc += r.need;
-    return '<div class="pf-rung ' + cls + '">'
-      + '<span class="pf-rung-badge" style="background:linear-gradient(135deg,' + r.c1 + ',' + r.c2 + ')"></span>'
-      + '<span class="pf-rung-name">' + name + '</span>'
-      + '<span class="pf-rung-need">' + need + '</span></div>';
-  }).join('');
-  document.querySelectorAll('.pf-ladder').forEach(lad => { lad.innerHTML = rows; });
+function pfSlideHTML(i, cur, name, avaBg, avaTxt) {
+  const r = RANKS[i];
+  const rname = r.tier ? (r.catName + ' ' + ROMAN[r.tier]) : r.catName;
+  const cls = i < cur.index ? 'past' : (i === cur.index ? 'current' : 'future');
+  const frac = (i === cur.index) ? cur.frac : 1;   // соседние ранги — полная полоса, чтобы был виден цвет
+  const bw = r.cat === 'absolute' ? 4.5 : (2 + r.tier * 0.7);
+  const glow = (r.tier === 3 || r.cat === 'absolute') ? 14 : (r.tier === 2 ? 9 : 6);
+  const frameBg = r.cat === 'absolute'
+    ? 'conic-gradient(from 0deg,#ff5d8f,#ffbf4d,#4fcac4,#6c80f5,#ff5d8f)'
+    : 'linear-gradient(135deg,' + r.c1 + ',' + r.c2 + ')';
+  const frameStyle = 'padding:' + bw + 'px;background:' + frameBg
+    + ';box-shadow:0 0 ' + glow + 'px ' + hexA(r.c1, 0.55) + ',0 4px 14px -6px ' + hexA(r.c1, 0.5) + ';';
+  const ava = avaBg
+    ? '<div class="pf-avatar" style="background-image:url(&quot;' + avaBg + '&quot;)"></div>'
+    : '<div class="pf-avatar">' + avaTxt + '</div>';
+  return '<div class="pf-slide ' + cls + '">'
+    + '<div class="pf-info">'
+    + '<span class="pf-name">' + name + '</span>'
+    + '<span class="pf-rank" style="color:' + r.c1 + '">' + rname + '</span>'
+    + '<div class="pf-xp"><span class="pf-xp-fill" style="width:' + (frac * 100) + '%;background:linear-gradient(90deg,' + r.c1 + ',' + r.c2 + ')"></span></div>'
+    + '</div>'
+    + '<div class="pf-frame' + (r.cat === 'absolute' ? ' absolute-frame' : '') + '" style="' + frameStyle + '">' + ava + '</div>'
+    + '</div>';
+}
+function pfUpdateThumb(track) {
+  const win = track.closest('.pf-window'); if (!win) return;
+  const thumb = win.querySelector('.pf-scrollbar-thumb'); if (!thumb) return;
+  const max = track.scrollWidth - track.clientWidth;
+  const wRatio = track.scrollWidth > 0 ? track.clientWidth / track.scrollWidth : 1;
+  const wPct = Math.max(10, Math.min(100, wRatio * 100));
+  const pos = max > 0 ? track.scrollLeft / max : 0;
+  thumb.style.width = wPct + '%';
+  thumb.style.left = (pos * (100 - wPct)) + '%';
+}
+function renderProfile() {
+  const cur = rankInfo(getXP());
+  const name = pfDisplayName();
+  const avaBg = (tgUser && tgUser.photo_url) ? tgUser.photo_url : '';
+  const avaTxt = (tgUser && tgUser.first_name ? tgUser.first_name[0] : 'И').toUpperCase();
+  const html = RANKS.map((r, i) => pfSlideHTML(i, cur, name, avaBg, avaTxt)).join('');
+  document.querySelectorAll('.pf-track').forEach(track => {
+    track.innerHTML = html;
+    if (!track._pfBound) { track._pfBound = true; track.addEventListener('scroll', () => pfUpdateThumb(track)); }
+  });
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    document.querySelectorAll('.pf-ladder').forEach(lad => {
-      const c = lad.querySelector('.pf-rung.current');
-      if (c && lad.clientHeight) lad.scrollTop = Math.max(0, c.offsetTop - lad.clientHeight / 2 + c.offsetHeight / 2);
+    document.querySelectorAll('.pf-track').forEach(track => {
+      const c = track.querySelector('.pf-slide.current');
+      if (c && track.clientWidth) track.scrollLeft = c.offsetLeft - (track.clientWidth - c.offsetWidth) / 2;
+      pfUpdateThumb(track);
     });
   }));
-}
-
-function renderProfile() {
-  const ri = rankInfo(getXP());
-  document.querySelectorAll('.pf-window').forEach(win => {
-    const nameEl = win.querySelector('.pf-name'); if (nameEl) nameEl.textContent = pfDisplayName();
-    setAvatar(win.querySelector('.pf-avatar'));
-    styleFrame(win.querySelector('.pf-frame'), ri);
-    const rk = win.querySelector('.pf-rank'); if (rk) { rk.textContent = ri.name; rk.style.color = ri.c1; }
-    const fill = win.querySelector('.pf-xp-fill');
-    if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
-  });
-  renderLadder();
 }
 
 // ---- оверлей конца раунда ----
