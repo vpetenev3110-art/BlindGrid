@@ -244,6 +244,9 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
 
 function startPlacement() {
   setGameUIHidden(false);
+  state = null;               // сбрасываем прошлый бой (фикс вылета на «Ещё раз»)
+  dragInfo = null;
+  document.getElementById('play-window').classList.remove('show'); // не мигаем кнопкой «Играть» до расстановки
   placement = {
     board: freshBoard(),
     pieces: FLEET_LIST.map((len, i) => ({ id: i, len, horiz: true, placed: false, cells: [], bad: false })),
@@ -1009,11 +1012,10 @@ function endGame(winner) {
   state.over = true;
   document.getElementById('enemy-board').classList.add('locked');
   const win = winner === 'player';
-  const before = getXP();
-  const gained = (win ? 100 : 0) + Math.round(state.comboXP || 0);
-  setXP(before + gained);
+  // очки: +10 за каждый уцелевший блок твоих кораблей (при победе), при поражении блоков не остаётся → −100
+  const remaining = state.player.ships.reduce((a, s) => a + Math.max(0, s.len - s.hits), 0);
   setTimeout(() => {
-    showResultOverlay(win, before, gained);
+    showXpResult(win, remaining, 'sea');
     launchConfetti(win);
   }, 600);
 }
@@ -1078,7 +1080,13 @@ document.getElementById('overlay-back').addEventListener('click', () => {
   renderProfile();
   document.getElementById('opp-select').classList.remove('hidden');
 });
-document.getElementById('play-btn').addEventListener('click', startBattle);
+document.getElementById('play-btn').addEventListener('click', () => {
+  if (!placement) return;
+  const allPlaced = placement.pieces.every(p => p.placed);
+  const anyBad = placement.pieces.some(p => p.placed && p.bad);
+  if (!allPlaced || anyBad) return;
+  startBattle();
+});
 
 function showMenu() {
   // прячем игровой UI, чтобы под меню ничего не мелькало
@@ -1328,34 +1336,7 @@ function popRankUp(ri, catChanged) {
     try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
   }
 }
-function animateXpGain(before, gained) {
-  const gainEl = document.getElementById('ov-xp-gain');
-  gainEl.textContent = '+0 XP';
-  gainEl.classList.add('show');
-  if (gained <= 0) { gainEl.textContent = '+0 XP'; applyOverlayRank(rankInfo(before)); return; }
-  const target = before + gained;
-  const dur = Math.min(4200, 1700 + gained * 1.4);
-  const start = performance.now();
-  let lastIndex = rankInfo(before).index;
-  let lastCat = rankInfo(before).cat;
-  function frame(now) {
-    const t = Math.min(1, (now - start) / dur);
-    // easeInOutCubic — мягкий старт и финиш
-    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    const val = before + (target - before) * eased;
-    const ri = rankInfo(val);
-    if (ri.index !== lastIndex) {
-      popRankUp(ri, ri.cat !== lastCat);
-      lastIndex = ri.index; lastCat = ri.cat;
-    }
-    applyOverlayRank(ri);
-    gainEl.textContent = '+' + Math.round(val - before) + ' XP';
-    if (t < 1) requestAnimationFrame(frame);
-    else gainEl.textContent = '+' + gained + ' XP';
-  }
-  requestAnimationFrame(frame);
-}
-// плавный налив бара ранга в любую сторону (для змейки опыт может уходить в минус)
+
 function animateXpBar(before, target, onDone) {
   const dur = Math.min(3600, 1300 + Math.abs(target - before) * 1.3);
   const start = performance.now();
@@ -1375,89 +1356,101 @@ function animateXpBar(before, target, onDone) {
   requestAnimationFrame(frame);
 }
 
-// результат раунда змейки: подсчёт фруктов → перевод в опыт
-function showSnakeResult(win, fruits) {
+function setRankVisuals(ri, withWidth) {
+  styleFrame(document.getElementById('ov-frame'), ri);
+  const rn = document.getElementById('ov-rank-name'); if (rn) { rn.textContent = ri.name; rn.style.color = '#fff'; }
+  const fill = document.getElementById('ov-xp-fill');
+  if (fill) {
+    fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')';
+    if (withWidth) { fill.style.transition = 'none'; fill.style.width = (ri.frac * 100) + '%'; requestAnimationFrame(() => { fill.style.transition = ''; }); }
+  }
+}
+
+// цветной налив: плюс → синяя линия идёт вперёд, за ней заливка; минус → заливка уходит назад, открывая красную
+function animateXpBarColored(before, target, onDone) {
+  const fill = document.getElementById('ov-xp-fill');
+  const ghost = document.getElementById('ov-xp-ghost');
+  const bRI = rankInfo(before), tRI = rankInfo(target);
+  ghost.className = ''; ghost.style.transition = 'none'; ghost.style.opacity = '0'; ghost.style.width = (bRI.frac * 100) + '%';
+  if (target === before) { if (onDone) onDone(); return; }
+  if (bRI.index !== tRI.index) { animateXpBar(before, target, onDone); return; }
+  setRankVisuals(tRI, false);
+  const bf = bRI.frac * 100, tf = tRI.frac * 100;
+  if (target > before) {
+    void ghost.offsetWidth;
+    ghost.classList.add('gain');
+    ghost.style.transition = 'width 0.55s cubic-bezier(.25,.9,.3,1)';
+    fill.style.transition = 'width 0.85s cubic-bezier(.3,.9,.3,1) 0.16s';
+    requestAnimationFrame(() => { ghost.style.width = tf + '%'; fill.style.width = tf + '%'; });
+    setTimeout(() => { ghost.style.transition = 'opacity 0.4s ease'; ghost.style.opacity = '0'; if (onDone) onDone(); }, 1200);
+  } else {
+    ghost.classList.add('loss');
+    ghost.style.width = bf + '%';
+    void ghost.offsetWidth;
+    fill.style.transition = 'width 0.8s cubic-bezier(.3,.9,.3,1)';
+    requestAnimationFrame(() => { fill.style.width = tf + '%'; });
+    setTimeout(() => { ghost.style.transition = 'opacity 0.45s ease'; ghost.style.opacity = '0'; if (onDone) onDone(); }, 1050);
+  }
+}
+
+function ovGainText(v) { return (v >= 0 ? '+' : '−') + Math.abs(v) + ' XP'; }
+
+// единый экран результата: подсчёт (фрукты/блоки) → перевод в опыт + цветной бар
+function showXpResult(win, count, kind) {
   const before = getXP();
   const base = win ? 0 : -100;
-  const gained = base + fruits * 10;
+  const gained = base + count * 10;
   const target = Math.max(0, before + gained);
   setXP(target);
 
   const overlay = document.getElementById('overlay');
   const title = document.getElementById('overlay-title');
   const ovxp = document.getElementById('ov-xp');
-  const tally = document.getElementById('ov-tally');
   const tallyN = document.getElementById('ov-tally-n');
   const gainEl = document.getElementById('ov-xp-gain');
+  const fruitIcon = document.querySelector('#ov-tally .ov-fruit');
   title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
   overlay.classList.toggle('lose', !win);
-  overlay.classList.add('is-snake');
+  overlay.classList.add('is-xp');
   overlay.classList.remove('settled', 'act-show');
   ovxp.classList.remove('show');
   document.getElementById('ov-rankup').classList.remove('show');
   document.getElementById('ov-cat-burst').classList.remove('go');
   document.getElementById('ov-frame').classList.remove('flash');
   document.getElementById('overlay-btn').textContent = 'Ещё раз';
-  applyOverlayRank(rankInfo(before));
+  if (fruitIcon) fruitIcon.classList.toggle('block', kind === 'sea');
+  setRankVisuals(rankInfo(before), true);
   setAvatar(document.getElementById('ov-ava'));
-  tallyN.textContent = fruits;
-  gainEl.classList.remove('show', 'minus');
+  document.getElementById('ov-xp-ghost').style.opacity = '0';
+  tallyN.textContent = count;
   let running = base;
-  gainEl.textContent = (running >= 0 ? '+' : '−') + Math.abs(running) + ' XP';
+  gainEl.classList.remove('show', 'minus');
+  gainEl.textContent = ovGainText(running);
   gainEl.classList.toggle('minus', running < 0);
   overlay.classList.remove('hidden');
 
   setTimeout(() => overlay.classList.add('settled'), 1200);
   setTimeout(() => { ovxp.classList.add('show'); gainEl.classList.add('show'); }, 1650);
-
-  // подсчёт: по одному фрукту переводим в +10 опыта
   setTimeout(() => {
-    let left = fruits;
+    let left = count;
     const step = () => {
       if (left <= 0) {
-        gainEl.textContent = (gained >= 0 ? '+' : '−') + Math.abs(gained) + ' XP';
+        gainEl.textContent = ovGainText(gained);
         gainEl.classList.toggle('minus', gained < 0);
-        setTimeout(() => animateXpBar(before, target, () => {
+        setTimeout(() => animateXpBarColored(before, target, () => {
           setTimeout(() => overlay.classList.add('act-show'), 250);
-        }), 350);
+        }), 300);
         return;
       }
-      left--;
-      running += 10;
+      left--; running += 10;
       tallyN.textContent = left;
-      gainEl.textContent = (running >= 0 ? '+' : '−') + Math.abs(running) + ' XP';
+      gainEl.textContent = ovGainText(running);
       gainEl.classList.toggle('minus', running < 0);
       try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
-      setTimeout(step, 170);
+      setTimeout(step, 150);
     };
     step();
   }, 2150);
-}
-
-function showResultOverlay(win, before, gained) {
-  const overlay = document.getElementById('overlay');
-  const title = document.getElementById('overlay-title');
-  const ovxp = document.getElementById('ov-xp');
-  const btn = document.getElementById('overlay-btn');
-  title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
-  overlay.classList.toggle('lose', !win);
-  overlay.classList.remove('is-snake');
-  overlay.classList.remove('settled');
-  overlay.classList.remove('act-show');
-  ovxp.classList.remove('show');
-  document.getElementById('ov-rankup').classList.remove('show');
-  document.getElementById('ov-cat-burst').classList.remove('go');
-  document.getElementById('ov-frame').classList.remove('flash');
-  btn.textContent = 'Ещё раз';
-  applyOverlayRank(rankInfo(before));
-  setAvatar(document.getElementById('ov-ava'));
-  document.getElementById('ov-xp-gain').textContent = '';
-  document.getElementById('ov-xp-gain').classList.remove('show');
-  overlay.classList.remove('hidden');
-  setTimeout(() => overlay.classList.add('settled'), 1300);
-  setTimeout(() => ovxp.classList.add('show'), 1750);
-  setTimeout(() => animateXpGain(before, gained), 2150);
-  setTimeout(() => overlay.classList.add('act-show'), 2650);
 }
 
 renderProfile();
@@ -1469,8 +1462,8 @@ const SNAKE_LIVES = 3;
 const SVGNS = 'http://www.w3.org/2000/svg';
 // базовые цвета (живая змейка) — из палитры морского боя
 const SNAKE_BASE = {
-  me: { sc: '#4fcac4', sch: '#2bb3ac' },
-  ai: { sc: '#ffb259', sch: '#e8902f' }
+  me: { sc: '#4fcac4', sch: '#2bb3ac', edge: '#2a8f8a' },
+  ai: { sc: '#ffb259', sch: '#e8902f', edge: '#b8650f' }
 };
 // состояния урона: 1-я смерть → «убитый» (--sunk), 2-я → «подбитый» (--hit), финал → серый (--miss)
 const SNAKE_DMG = { 2: 'var(--sunk)', 1: 'var(--hit)', 0: 'var(--miss)' };
@@ -1499,6 +1492,7 @@ function buildSnakeGrid(id, who) {
   const c = SNAKE_BASE[who];
   svg.style.setProperty('--sc', c.sc);
   svg.style.setProperty('--sc-h', c.sch);
+  svg.style.setProperty('--sc-edge', c.edge);
   const bg = svgEl('g', {});
   for (let r = 0; r < SNAKE_N; r++)
     for (let col = 0; col < SNAKE_N; col++)
@@ -1548,42 +1542,54 @@ function snakePaint(side) {
   side.gBody.innerHTML = '';
   if (side.fruit)
     side.gFruit.appendChild(svgEl('circle', { class: 'snk-fruit-dot', cx: side.fruit.c + 0.5, cy: side.fruit.r + 0.5, r: 0.3 }));
-  // мостики между соседними блоками
+  const edges = [], fills = [];
+  // мостики
   for (let i = 0; i < side.cells.length - 1; i++) {
     const a = side.cells[i], b = side.cells[i + 1];
-    let attrs;
-    if (a.r === b.r) attrs = { class: 'snk-br', x: Math.min(a.c, b.c) + 0.5, y: a.r + 0.18, width: 1, height: 0.64, rx: 0.12 };
-    else attrs = { class: 'snk-br', x: a.c + 0.18, y: Math.min(a.r, b.r) + 0.5, width: 0.64, height: 1, rx: 0.12 };
-    side.gBody.appendChild(svgEl('rect', attrs));
+    if (a.r === b.r) {
+      const x = Math.min(a.c, b.c) + 0.5;
+      edges.push(svgEl('rect', { class: 'snk-edge', x: x - 0.05, y: a.r + 0.11, width: 1.1, height: 0.78, rx: 0.14 }));
+      fills.push(svgEl('rect', { class: 'snk-br', x: x, y: a.r + 0.18, width: 1, height: 0.64, rx: 0.12 }));
+    } else {
+      const y = Math.min(a.r, b.r) + 0.5;
+      edges.push(svgEl('rect', { class: 'snk-edge', x: a.c + 0.11, y: y - 0.05, width: 0.78, height: 1.1, rx: 0.14 }));
+      fills.push(svgEl('rect', { class: 'snk-br', x: a.c + 0.18, y: y, width: 0.64, height: 1, rx: 0.12 }));
+    }
   }
   const last = side.cells.length - 1;
   side.cells.forEach((p, idx) => {
     if (idx === 0) {
-      // голова: скруглён только передний край (по направлению), задняя часть обычная
-      const x = p.c + 0.08, y = p.r + 0.08, w = 0.84;
-      const R = 0.42, n = 0.18;
       const d = side.dir;
-      let tl = n, tr = n, br = n, bl = n;
-      if (d.c === 1) { tr = R; br = R; }
-      else if (d.c === -1) { tl = R; bl = R; }
-      else if (d.r === 1) { bl = R; br = R; }
-      else { tl = R; tr = R; }
-      side.gBody.appendChild(svgEl('path', { class: 'snk-head', d: roundRectPath(x, y, w, w, tl, tr, br, bl) }));
+      const headR = (x, y, w, R, n) => {
+        let tl = n, tr = n, br = n, bl = n;
+        if (d.c === 1) { tr = R; br = R; }
+        else if (d.c === -1) { tl = R; bl = R; }
+        else if (d.r === 1) { bl = R; br = R; }
+        else { tl = R; tr = R; }
+        return roundRectPath(x, y, w, w, tl, tr, br, bl);
+      };
+      edges.push(svgEl('path', { class: 'snk-edge', d: headR(p.c + 0.02, p.r + 0.02, 0.96, 0.48, 0.24) }));
+      fills.push(svgEl('path', { class: 'snk-head', d: headR(p.c + 0.08, p.r + 0.08, 0.84, 0.42, 0.18) }));
     } else if (idx === last) {
-      // хвост — треугольник, остриём наружу
       const prev = side.cells[idx - 1];
       const dr = p.r - prev.r, dc = p.c - prev.c;
-      const x = p.c + 0.12, y = p.r + 0.12, w = 0.76;
-      let pts;
-      if (dc === 1) pts = [[x + w, y + w / 2], [x, y], [x, y + w]];
-      else if (dc === -1) pts = [[x, y + w / 2], [x + w, y], [x + w, y + w]];
-      else if (dr === 1) pts = [[x + w / 2, y + w], [x, y], [x + w, y]];
-      else pts = [[x + w / 2, y], [x, y + w], [x + w, y + w]];
-      side.gBody.appendChild(svgEl('polygon', { class: 'snk-tail', points: pts.map(q => q.join(',')).join(' ') }));
+      const tri = (x, y, w) => {
+        let pts;
+        if (dc === 1) pts = [[x + w, y + w / 2], [x, y], [x, y + w]];
+        else if (dc === -1) pts = [[x, y + w / 2], [x + w, y], [x + w, y + w]];
+        else if (dr === 1) pts = [[x + w / 2, y + w], [x, y], [x + w, y]];
+        else pts = [[x + w / 2, y], [x, y + w], [x + w, y + w]];
+        return pts.map(q => q.join(',')).join(' ');
+      };
+      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: tri(p.c + 0.06, p.r + 0.06, 0.88) }));
+      fills.push(svgEl('polygon', { class: 'snk-tail', points: tri(p.c + 0.16, p.r + 0.16, 0.68) }));
     } else {
-      side.gBody.appendChild(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));
+      edges.push(svgEl('rect', { class: 'snk-edge', x: p.c + 0.03, y: p.r + 0.03, width: 0.94, height: 0.94, rx: 0.27 }));
+      fills.push(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));
     }
   });
+  edges.forEach(e => side.gBody.appendChild(e));
+  fills.forEach(e => side.gBody.appendChild(e));
 }
 
 function snakeAdvance(side, dir) {
@@ -1634,6 +1640,7 @@ function snakeRenderLives() {
 function snakeSetColor(side, sc, sch) {
   side.svg.style.setProperty('--sc', sc);
   side.svg.style.setProperty('--sc-h', sch || sc);
+  side.svg.style.setProperty('--sc-edge', 'color-mix(in srgb, ' + sc + ', #000 32%)');
 }
 
 function snakeCountdownOn(side, onDone) {
@@ -1708,7 +1715,7 @@ function snakeTick() {
 
 function snakeEnd(win, fruits) {
   document.getElementById('snake-screen').classList.add('hidden');
-  setTimeout(() => { showSnakeResult(win, fruits); launchConfetti(win); }, 90);
+  setTimeout(() => { showXpResult(win, fruits, 'snake'); launchConfetti(win); }, 90);
 }
 
 function snakeStop() {

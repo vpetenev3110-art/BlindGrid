@@ -538,9 +538,16 @@
     color: var(--ink); line-height: 1;
   }
   #menu-logo .logo-cross { color: var(--miss); flex-shrink: 0;
-    animation: cross-spin 0.8s cubic-bezier(.34,1.3,.64,1) 0.3s both; }
+    animation: menu-cross-in 0.8s cubic-bezier(.34,1.3,.64,1) 0.3s both; }
   #menu-logo .logo-text { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 40px; letter-spacing: 2.5px;
-    animation: logo-reveal 0.7s ease-out 0.45s both; }
+    animation: menu-text-in 0.7s ease-out 0.45s both; }
+  /* без opacity — текст и крест всегда видимы, даже если анимация не проиграется */
+  @keyframes menu-text-in { 0% { transform: translateX(8px); } 100% { transform: translateX(0); } }
+  @keyframes menu-cross-in {
+    0%   { transform: rotate(-160deg) scale(0.4); }
+    70%  { transform: rotate(20deg) scale(1.1); }
+    100% { transform: rotate(0deg) scale(1); }
+  }
   #menu-logo .logo-cube { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
     background: var(--grad-3); box-shadow: 0 1px 8px rgba(255,93,115,0.6);
     animation: cube-run-big 0.7s cubic-bezier(.4,0,.2,1) both; }
@@ -821,9 +828,11 @@
   .snk-bgc { fill: color-mix(in srgb, var(--cell), #000 12%); stroke: var(--grid-line); stroke-width: 0.045; }
   /* тело — куб + мостик; цвет через --sc на svg, плавный переход */
   .snk-cube, .snk-br, .snk-tail { fill: var(--sc, #4fcac4); transition: fill 0.4s ease; }
-  .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.14; stroke-linejoin: round; stroke-linecap: round;
-    transition: fill 0.4s ease, stroke 0.4s ease; }
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
+  /* контур (как у фигур морского боя) — отдельный слой-силуэт под телом */
+  .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
+  .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.14; stroke-linejoin: round; stroke-linecap: round; }
+  .snk-edge.snk-tail-e { stroke: var(--sc-edge, #2a8f8a); stroke-width: 0.16; stroke-linejoin: round; stroke-linecap: round; }
   .snk-fruit-dot { fill: var(--hit); }
   /* маркеры финальной смерти: белая точка → дырка цвета поля */
   .snk-mark { fill: #ffffff; transform-box: fill-box; transform-origin: center;
@@ -844,7 +853,7 @@
     opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
   }
   .snake-dim.show { opacity: 1; }
-  .snake-num { font-family: 'Nunito', sans-serif; font-weight: 400; color: rgba(238,236,247,0.78);
+  .snake-num { font-family: 'Nunito', sans-serif; font-weight: 600; color: rgba(238,236,247,0.8);
     font-size: 60px; line-height: 1; letter-spacing: 1px; text-shadow: 0 3px 14px rgba(0,0,0,0.45);
     animation: snake-num-pop 0.9s ease; }
   .mini .snake-num { font-size: 30px; }
@@ -948,14 +957,21 @@
     82% { opacity: 1; } 100% { opacity: 0; }
   }
   #ov-rank-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: 0.5px; color: #fff; }
-  #ov-xp-bar { width: 100%; height: 12px; border-radius: 999px; overflow: hidden;
+  #ov-xp-bar { width: 100%; height: 12px; border-radius: 999px; overflow: hidden; position: relative;
     background: rgba(255,255,255,0.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.13); }
-  #ov-xp-fill { display: block; height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg,#c8804a,#e6a96f); }
+  #ov-xp-ghost { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 999px; z-index: 1; opacity: 0;
+    transition: width 0.5s cubic-bezier(.25,.9,.3,1), opacity 0.35s ease; }
+  #ov-xp-ghost.gain { background: linear-gradient(90deg,#4f8cff,#6ca8ff); opacity: 1; }
+  #ov-xp-ghost.loss { background: linear-gradient(90deg,#ff5d73,#ff8095); opacity: 1; }
+  #ov-xp-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 999px; z-index: 2;
+    background: linear-gradient(90deg,#c8804a,#e6a96f); }
   #ov-tally { display: none; align-items: center; gap: 7px; font-family: 'Nunito', sans-serif; font-weight: 800;
     font-size: 17px; color: #fff; min-height: 22px; }
-  #overlay.is-snake #ov-tally { display: flex; }
+  #overlay.is-xp #ov-tally { display: flex; }
   #ov-tally .ov-fruit { width: 15px; height: 15px; border-radius: 50%;
     background: radial-gradient(circle at 38% 34%, #ffa6ad, #ff5d8f 70%); box-shadow: 0 0 6px rgba(255,93,115,0.6); }
+  #ov-tally .ov-fruit.block { border-radius: 3px;
+    background: linear-gradient(140deg,#62d3cd,#4fcac4); box-shadow: 0 0 6px rgba(79,202,196,0.5); }
   #ov-xp-gain { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: #fff; opacity: 0;
     transition: opacity 0.45s ease; min-height: 19px; }
   #ov-xp-gain.show { opacity: 1; }
