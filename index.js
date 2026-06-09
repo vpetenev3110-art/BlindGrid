@@ -35,7 +35,6 @@ function ensureMenuLogoVisible() {
     el.style.animation = 'none';
   });
 }
-setTimeout(ensureMenuLogoVisible, 1700);
 document.addEventListener('visibilitychange', function () {
   if (!document.hidden) setTimeout(ensureMenuLogoVisible, 120);
 });
@@ -86,6 +85,29 @@ function makeParticles(layerId) {
 }
 makeParticles('particles');
 makeParticles('menu-particles');
+makeParticles('loader-particles');
+
+// перезапуск красивой анимации лого меню (вызывается после загрузочного экрана — надёжная точка)
+function playMenuLogo() {
+  ['.logo-cross', '.logo-text', '.logo-cube'].forEach(function (sel) {
+    var el = document.querySelector('#menu-logo ' + sel);
+    if (!el) return;
+    el.style.animation = 'none';
+    void el.offsetWidth;            // reflow → перезапуск
+    el.style.animation = '';        // возврат к CSS-анимации, проигрывается заново
+  });
+}
+// быстрый загрузочный экран: фигуры собираются, затем уходим в меню и запускаем лого
+(function () {
+  var loader = document.getElementById('loader');
+  if (!loader) return;
+  setTimeout(function () {
+    loader.classList.add('done');
+    playMenuLogo();
+    setTimeout(function () { loader.style.display = 'none'; }, 560);
+    setTimeout(ensureMenuLogoVisible, 1400);   // страховка ПОСЛЕ проигрыша анимации
+  }, 1500);
+})();
 
 const MODES = {
   fast: {

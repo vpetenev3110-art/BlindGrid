@@ -132,6 +132,52 @@
     100% { transform: translateY(-105vh) rotate(var(--rot,0deg)) scale(0.85); opacity: 0; }
   }
 
+  /* ===== загрузочный экран ===== */
+  #loader {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+    background: var(--bg-grad, linear-gradient(135deg,#1a1828 0%,#211d33 60%,#1b1a2c 100%));
+    transition: opacity 0.5s ease;
+  }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader-particles { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+  #loader-stage { position: relative; width: 150px; height: 96px; z-index: 1; }
+  .load-piece {
+    position: absolute; border-radius: 6px; opacity: 0;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.28);
+    animation: lp-assemble 0.85s cubic-bezier(.2,.8,.3,1.05) both;
+  }
+  @keyframes lp-assemble {
+    0%   { opacity: 0; transform: var(--from); }
+    55%  { opacity: 1; }
+    100% { opacity: 1; transform: translate(0,0) rotate(0deg) scale(1); }
+  }
+  .lp1 { left: 40px; top: 6px;  width: 70px; height: 18px; background: var(--grad-2); --from: translate(60px,-90px) rotate(220deg) scale(.4); animation-delay: 0.05s; }
+  .lp2 { left: 40px; top: 72px; width: 70px; height: 18px; background: var(--grad-1); --from: translate(-70px,95px) rotate(-200deg) scale(.4); animation-delay: 0.16s; }
+  .lp3 { left: 14px; top: 18px; width: 18px; height: 60px; background: var(--grad-3); --from: translate(-95px,-30px) rotate(-260deg) scale(.4); animation-delay: 0.10s; }
+  .lp4 { left: 118px;top: 18px; width: 18px; height: 60px; background: var(--grad-4); --from: translate(95px,40px) rotate(260deg) scale(.4); animation-delay: 0.22s; }
+  .lp5 { display: none; }
+  .load-cross {
+    position: absolute; left: 50%; top: 50%; color: var(--miss); z-index: 2; line-height: 0;
+    transform: translate(-50%,-50%);
+    animation: lc-pop 0.6s cubic-bezier(.34,1.5,.5,1) 0.55s both;
+  }
+  @keyframes lc-pop {
+    0%   { opacity: 0; transform: translate(-50%,-50%) rotate(-180deg) scale(0.2); }
+    100% { opacity: 1; transform: translate(-50%,-50%) rotate(0deg) scale(1); }
+  }
+  #loader-word {
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: 3px; z-index: 1;
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--ink, #eceaf6), #ffffff 16%),
+      var(--ink, #eceaf6),
+      color-mix(in srgb, var(--ink, #eceaf6), #9a90d6 22%));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    opacity: 0; animation: lw-in 0.5s ease 0.85s both;
+  }
+  @keyframes lw-in { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+
   #header {
     position: relative; z-index: 2;
     padding: 16px 22px 4px;
@@ -549,22 +595,16 @@
       color-mix(in srgb, var(--ink), #9a90d6 20%) 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
-    animation: menu-text-in 0.7s ease-out 0.3s both; }
-  /* БЕЗ opacity — текст и крест видны всегда (на проблемных webview анимация с opacity застревала) */
-  @keyframes menu-text-in { 0% { transform: translateX(8px); } 100% { transform: translateX(0); } }
+    animation: menu-text-in 0.7s ease-out 0.45s both; }
+  @keyframes menu-text-in { 0% { opacity: 0; transform: translateX(8px); } 100% { opacity: 1; transform: translateX(0); } }
   @keyframes menu-cross-in {
-    0%   { transform: rotate(-160deg) scale(0.4); }
-    70%  { transform: rotate(20deg) scale(1.1); }
-    100% { transform: rotate(0deg) scale(1); }
+    0%   { opacity: 0; transform: rotate(-160deg) scale(0.4); }
+    70%  { opacity: 1; transform: rotate(20deg) scale(1.1); }
+    100% { opacity: 1; transform: rotate(0deg) scale(1); }
   }
   #menu-logo .logo-cube { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
     background: var(--grad-3); box-shadow: 0 1px 8px rgba(255,93,115,0.6);
-    animation: menu-cube-in 0.65s cubic-bezier(.3,1.2,.5,1) 0.15s both; }
-  /* кубик заезжает СПРАВА (не пересекает название), без opacity */
-  @keyframes menu-cube-in {
-    0%   { transform: translateX(120px) rotate(45deg) scale(0.5); }
-    100% { transform: translateX(0) rotate(0deg) scale(1); }
-  }
+    animation: cube-run-big 0.7s cubic-bezier(.4,0,.2,1) both; }
   #menu-tagline {
     margin-top: 14px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
     color: var(--ink-soft); font-weight: 700;
