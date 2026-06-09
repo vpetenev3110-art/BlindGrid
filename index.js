@@ -31,8 +31,8 @@ document.addEventListener('touchmove', function (e) {
 // Страховка названия в меню: после проявления снимаем анимацию с текста/креста,
 // чтобы при любом сбое они остались видимыми (кубик не трогаем — у него своя анимация).
 function ensureMenuLogoVisible() {
-  document.querySelectorAll('#menu-logo .logo-text, #menu-logo .logo-cross').forEach(function (el) {
-    el.style.animation = 'none';
+  document.querySelectorAll('#menu-logo .logo-text, #menu-logo .logo-cross, #menu-logo .logo-cube').forEach(function (el) {
+    el.style.transform = '';
   });
 }
 document.addEventListener('visibilitychange', function () {
@@ -89,18 +89,59 @@ makeParticles('loader-particles');
 
 // перезапуск красивой анимации лого меню (вызывается после загрузочного экрана — надёжная точка)
 function playMenuLogo() {
-  ['.logo-cross', '.logo-text', '.logo-cube'].forEach(function (sel) {
-    var el = document.querySelector('#menu-logo ' + sel);
-    if (!el) return;
-    el.style.animation = 'none';
-    void el.offsetWidth;            // reflow → перезапуск
-    el.style.animation = '';        // возврат к CSS-анимации, проигрывается заново
-  });
+  try {
+    var cross = document.querySelector('#menu-logo .logo-cross');
+    var text = document.querySelector('#menu-logo .logo-text');
+    var cube = document.querySelector('#menu-logo .logo-cube');
+    if (cross) cross.style.transform = 'rotate(-150deg) scale(0.4)';
+    if (text) text.style.transform = 'translateX(10px)';
+    if (cube) cube.style.transform = 'translateX(70px) rotate(40deg) scale(0.5)';
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (cube) cube.style.transform = 'translateX(0) rotate(0deg) scale(1)';
+        if (cross) setTimeout(function () { cross.style.transform = 'rotate(0deg) scale(1)'; }, 80);
+        if (text) setTimeout(function () { text.style.transform = 'translateX(0)'; }, 120);
+      });
+    });
+  } catch (e) {}
 }
-// быстрый загрузочный экран: фигуры собираются, затем уходим в меню и запускаем лого
+// загрузочный экран: фигуры собираются (через JS-transition), затем уходим в меню и запускаем лого
 (function () {
   var loader = document.getElementById('loader');
   if (!loader) return;
+
+  // въезд сборки через transition — базовое состояние уже собранное, поэтому при сбое всё видно
+  try {
+    var stage = document.getElementById('loader-stage');
+    var starts = {
+      lp1: 'translate(55px,-70px) rotate(170deg) scale(.5)',
+      lp2: 'translate(-58px,75px) rotate(-160deg) scale(.5)',
+      lp3: 'translate(-78px,-26px) rotate(-210deg) scale(.5)',
+      lp4: 'translate(78px,32px) rotate(210deg) scale(.5)'
+    };
+    var cross = stage && stage.querySelector('.load-cross');
+    var word = document.getElementById('loader-word');
+    if (stage) {
+      Object.keys(starts).forEach(function (k) {
+        var el = stage.querySelector('.' + k);
+        if (el) el.style.transform = starts[k];
+      });
+    }
+    if (cross) cross.style.transform = 'translate(-50%,-50%) rotate(-150deg) scale(.18)';
+    if (word) word.style.transform = 'translateY(12px) scale(.9)';
+    // на следующий кадр возвращаем в финальное состояние → transition проигрывает сборку
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (stage) Object.keys(starts).forEach(function (k) {
+          var el = stage.querySelector('.' + k);
+          if (el) el.style.transform = 'translate(0,0) rotate(0deg) scale(1)';
+        });
+        if (cross) setTimeout(function () { cross.style.transform = 'translate(-50%,-50%) rotate(0deg) scale(1)'; }, 260);
+        if (word) setTimeout(function () { word.style.transform = 'translateY(0) scale(1)'; }, 420);
+      });
+    });
+  } catch (e) {}
+
   var hidden = false;
   function hideLoader() {
     if (hidden) return; hidden = true;
@@ -112,8 +153,8 @@ function playMenuLogo() {
     try { playMenuLogo(); } catch (e) {}
     setTimeout(function () { try { ensureMenuLogoVisible(); } catch (e) {} }, 1300);
   }
-  setTimeout(hideLoader, 1200);
-  window.addEventListener('load', function () { setTimeout(hideLoader, 1200); });
+  setTimeout(hideLoader, 1650);   // дольше — чтобы собранное лого было видно
+  window.addEventListener('load', function () { setTimeout(hideLoader, 1650); });
 })();
 
 const MODES = {
@@ -866,13 +907,12 @@ function onEnemyCellClick(r, c) {
 }
 function allSunk(side) { return side.ships.every(s => s.sunk); }
 
-function showCombo(n) {
-  const tag = document.getElementById('combo-tag');
+function renderCombo(tag, n) {
   if (!tag) return;
   let inner = tag.querySelector('.combo-inner');
   if (!inner) { inner = document.createElement('span'); inner.className = 'combo-inner'; tag.appendChild(inner); }
   const palette = ['#3fc4b0', '#4e8eff', '#9b6dff', '#ff5d8f', '#ff9326', '#ff4757'];
-  const idx = Math.min(n - 2, palette.length - 1);
+  const idx = Math.max(0, Math.min(n - 2, palette.length - 1));
   const big = n >= 4;
   inner.textContent = '×' + n + '!';
   inner.style.color = palette[idx];
@@ -899,8 +939,7 @@ function showCombo(n) {
   clearTimeout(tag._luT);
   tag._luT = setTimeout(() => tag.classList.remove('levelup'), 520);
 }
-function hideCombo() {
-  const tag = document.getElementById('combo-tag');
+function hideComboTag(tag) {
   if (!tag) return;
   const wasVisible = tag.classList.contains('show') || tag.classList.contains('big');
   tag.classList.remove('show', 'big', 'levelup', 'dim');
@@ -911,6 +950,8 @@ function hideCombo() {
     tag.style.opacity = '0';
   }
 }
+function showCombo(n) { renderCombo(document.getElementById('combo-tag'), n); }
+function hideCombo() { hideComboTag(document.getElementById('combo-tag')); }
 
 let shipStyle = 'classic';
 // у каждого размера корабля — свой вид цветка и своя связка
@@ -1877,21 +1918,11 @@ function snakeCheckOver() {
   }
 }
 
-let snakeComboTimer = null;
-function showSnakeCombo(n) {
-  const t = document.getElementById('snake-combo'); if (!t) return;
-  t.textContent = 'Комбо x' + n;
-  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
-  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
-}
-function hideSnakeCombo() {
-  const t = document.getElementById('snake-combo'); if (!t) return;
-  t.classList.remove('show'); t.style.opacity = '0'; t.textContent = '';
-}
+let snakeComboTimer = null, snakeComboDimTimer = null;
 function snakeComboReset() {
-  clearTimeout(snakeComboTimer);
+  clearTimeout(snakeComboTimer); clearTimeout(snakeComboDimTimer);
   if (snakeState) snakeState.me.comboN = 0;
-  hideSnakeCombo();
+  hideComboTag(document.getElementById('snake-combo-tag'));
 }
 // игрок съел фрукт: комбо, если успел в 3с после предыдущего
 function snakeOnEat(side) {
@@ -1901,10 +1932,14 @@ function snakeOnEat(side) {
   side.lastEat = now;
   if (side.comboN >= 2) {
     side.comboXP += Math.min(40, 10 * (side.comboN - 1));   // x2=10, x3=20, … потолок 40
-    showSnakeCombo(side.comboN);
+    renderCombo(document.getElementById('snake-combo-tag'), side.comboN);
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
   }
-  clearTimeout(snakeComboTimer);
-  snakeComboTimer = setTimeout(() => { side.comboN = 0; hideSnakeCombo(); }, 3000);
+  // тускнеет ближе к концу окна, сбрасывается через 3с
+  clearTimeout(snakeComboTimer); clearTimeout(snakeComboDimTimer);
+  const tag = document.getElementById('snake-combo-tag');
+  snakeComboDimTimer = setTimeout(() => { if (tag) tag.classList.add('dim'); }, 1900);
+  snakeComboTimer = setTimeout(() => { side.comboN = 0; hideComboTag(tag); }, 3000);
 }
 
 function snakeTick() {
