@@ -112,6 +112,7 @@ function playMenuLogo() {
   var hidden = false;
   function hideLoader() {
     if (hidden) return; hidden = true;
+    document.body.classList.add('ready');
     loader.classList.add('done');
     loader.style.opacity = '0';
     loader.style.pointerEvents = 'none';
@@ -1546,7 +1547,7 @@ function showXpResult(win, count, kind, extra) {
   const haptic = () => { try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {} };
   // доля внутри ранга старта (зажим на границах, чтобы не прыгало)
   const fracFor = (xp) => { const ri = rankInfo(Math.max(0, xp)); return ri.index > beforeRI.index ? 1 : (ri.index < beforeRI.index ? 0 : ri.frac); };
-  const gainLabel = () => { gainEl.textContent = ovGainText(running); gainEl.classList.toggle('minus', running < 0); };
+  const gainLabel = () => { gainEl.textContent = ovGainText(Math.round(running)); gainEl.classList.toggle('minus', running < 0); };
   // живое обновление бара ПАРАЛЛЕЛЬНО с подсчётом
   const liveBar = () => {
     const xpNow = before + running;
@@ -1583,18 +1584,19 @@ function showXpResult(win, count, kind, extra) {
     }
   };
 
-  // поражение: одно плавное движение к НЕТТО-итогу (штраф уже с учётом комбо — без «плюс/минус»)
-  // прогрессивный налив к цели: чем больше опыта — тем крупнее шаг и короче задержка
+  // налив к цели чистыми круглыми шагами (ровные числа), плавно и не слишком быстро
   const ramp = (target, onDone) => {
     const total = Math.abs(target - running);
-    if (total < 0.5) { running = target; gainLabel(); liveBar(); onDone(); return; }
-    const steps = Math.max(4, Math.min(40, Math.round(total / 10)));
-    const inc = (target - running) / steps;
-    const delay = Math.max(16, Math.min(130, Math.round(640 / steps)));
+    if (total < 1) { running = target; gainLabel(); liveBar(); onDone(); return; }
+    const dir = target > running ? 1 : -1;
+    const step = total <= 150 ? 10 : total <= 500 ? 20 : total <= 1500 ? 50 : 100;
+    const steps = Math.ceil(total / step);
+    const delay = Math.max(30, Math.min(95, Math.round(780 / steps)));
     let i = 0;
     const tick = () => {
       i++;
-      running = (i >= steps) ? target : running + inc;
+      running = (i >= steps) ? target : running + dir * step;
+      if ((dir > 0 && running > target) || (dir < 0 && running < target)) running = target;
       gainLabel(); liveBar(); haptic();
       if (i >= steps) { onDone(); return; }
       setTimeout(tick, delay);
@@ -1758,19 +1760,27 @@ function snakePaint(side) {
       };
       edges.push(svgEl('path', { class: 'snk-edge', d: headR(p.c + 0.02, p.r + 0.02, 0.96, 0.48, 0.24) }));
       fills.push(svgEl('path', { class: 'snk-head', d: headR(p.c + 0.08, p.r + 0.08, 0.84, 0.42, 0.18) }));
+      // глазки-полоски у переднего края
+      let ew, eh, e1, e2;
+      if (d.c === 1)       { ew = 0.09; eh = 0.26; e1 = [p.c + 0.56, p.r + 0.2]; e2 = [p.c + 0.56, p.r + 0.54]; }
+      else if (d.c === -1) { ew = 0.09; eh = 0.26; e1 = [p.c + 0.35, p.r + 0.2]; e2 = [p.c + 0.35, p.r + 0.54]; }
+      else if (d.r === 1)  { ew = 0.26; eh = 0.09; e1 = [p.c + 0.2, p.r + 0.56]; e2 = [p.c + 0.54, p.r + 0.56]; }
+      else                 { ew = 0.26; eh = 0.09; e1 = [p.c + 0.2, p.r + 0.35]; e2 = [p.c + 0.54, p.r + 0.35]; }
+      fills.push(svgEl('rect', { class: 'snk-eye', x: e1[0], y: e1[1], width: ew, height: eh, rx: 0.045 }));
+      fills.push(svgEl('rect', { class: 'snk-eye', x: e2[0], y: e2[1], width: ew, height: eh, rx: 0.045 }));
     } else if (idx === last) {
       const prev = side.cells[idx - 1];
       const dr = p.r - prev.r, dc = p.c - prev.c;
-      const tri = (x, y, w) => {
-        let pts;
-        if (dc === 1) pts = [[x + w, y + w / 2], [x, y], [x, y + w]];
-        else if (dc === -1) pts = [[x, y + w / 2], [x + w, y], [x + w, y + w]];
-        else if (dr === 1) pts = [[x + w / 2, y + w], [x, y], [x + w, y]];
-        else pts = [[x + w / 2, y], [x, y + w], [x + w, y + w]];
-        return pts.map(q => q.join(',')).join(' ');
+      // хвост: основание по ширине мостика (встык, без ступеньки), короче → меньше
+      const tailPts = (off, l) => {
+        if (dc === 1)  return [[p.c + off, p.r + off], [p.c + off, p.r + 1 - off], [p.c + off + l, p.r + 0.5]];
+        if (dc === -1) return [[p.c + 1 - off, p.r + off], [p.c + 1 - off, p.r + 1 - off], [p.c + 1 - off - l, p.r + 0.5]];
+        if (dr === 1)  return [[p.c + off, p.r + off], [p.c + 1 - off, p.r + off], [p.c + 0.5, p.r + off + l]];
+        return [[p.c + off, p.r + 1 - off], [p.c + 1 - off, p.r + 1 - off], [p.c + 0.5, p.r + 1 - off - l]];
       };
-      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: tri(p.c + 0.03, p.r + 0.03, 0.94) }));
-      fills.push(svgEl('polygon', { class: 'snk-tail', points: tri(p.c + 0.1, p.r + 0.1, 0.8) }));
+      const toStr = a => a.map(q => q.join(',')).join(' ');
+      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: toStr(tailPts(0.11, 0.57)) }));
+      fills.push(svgEl('polygon', { class: 'snk-tail', points: toStr(tailPts(0.18, 0.5)) }));
     } else {
       edges.push(svgEl('rect', { class: 'snk-edge', x: p.c + 0.03, y: p.r + 0.03, width: 0.94, height: 0.94, rx: 0.27 }));
       fills.push(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));

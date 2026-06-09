@@ -798,11 +798,11 @@
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 6px;
-    padding: 2px 8px 58px; overflow: hidden; touch-action: none;
-    --big-w: min(96vw, 416px);
+    padding: 2px 8px 46px; overflow: hidden; touch-action: none;
+    --big-w: min(95vw, 404px);
     --mini-w: min(46vw, 180px);
   }
-  .snake-board-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .snake-board-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
   .big-wrap  { --snake-w: var(--big-w); }
   .mini-wrap { --snake-w: var(--mini-w); }
   /* поле противника выравнивается по левому краю большого поля (как мини-доска в морском бою) */
@@ -811,20 +811,21 @@
   }
   .big-wrap .board-label, .big-wrap .snake-grid { margin-left: auto; margin-right: auto; }
   .snake-board-wrap .board-label { max-width: var(--snake-w); width: 100%; margin-bottom: 4px; }
-  /* поле — точь-в-точь как доска морского боя */
+  /* поле — точь-в-точь как доска морского боя; высота берётся от самого SVG (квадрат), не от flex */
   .snake-grid {
     position: relative;
-    width: 100%; max-width: var(--snake-w); aspect-ratio: 1;
+    width: 100%; max-width: var(--snake-w);
     border-radius: 16px; padding: 6px;
     background: var(--grid-bg);
     box-shadow: inset 0 0 0 1px rgba(52,48,74,0.05);
   }
-  .snake-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .snake-svg { width: 100%; height: auto; display: block; overflow: visible; }
   /* фоновые клетки — как клетки морского боя, чуть темнее */
   .snk-bgc { fill: color-mix(in srgb, var(--cell), #000 12%); stroke: var(--grid-line); stroke-width: 0.045; }
   /* тело — куб + мостик; цвет через --sc на svg, плавный переход */
   .snk-cube, .snk-br, .snk-tail { fill: var(--sc, #4fcac4); transition: fill 0.4s ease; }
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
+  .snk-eye { fill: rgba(20,16,32,0.66); }
   /* контур (как у фигур морского боя) — отдельный слой-силуэт под телом */
   .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
   .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.2; stroke-linejoin: round; stroke-linecap: round; }
@@ -844,7 +845,7 @@
     100% { transform: scale(2.7); opacity: 0; }
   }
   /* комбо как в морском бою, в левом верхнем углу поля игрока */
-  .snake-grid-holder { position: relative; width: 100%; max-width: var(--big-w); margin: 0 auto; }
+  .snake-grid-holder { position: relative; width: 100%; max-width: var(--big-w); margin: 0 auto; flex-shrink: 0; }
   #snake-combo-tag {
     position: absolute; right: 6px; top: -14px; z-index: 8;
     pointer-events: none; opacity: 0;

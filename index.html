@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=31">
+<link rel="stylesheet" href="index.css?v=32">
 <style>
   /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
      поэтому меню не успевает мелькнуть */
@@ -26,11 +26,15 @@
   }
   #loader.done { opacity: 0; pointer-events: none; }
   @keyframes loader-spin { to { transform: rotate(360deg); } }
+  /* контент скрыт, пока лоадер не уйдёт — меню не мелькнёт ни на кадр */
+  body { background: var(--tg-theme-bg-color, #1a1828); }
+  #game, #app-version { visibility: hidden; }
+  body.ready #game, body.ready #app-version { visibility: visible; }
 </style>
 </head>
 <body>
 <div id="loader"><div class="loader-spin"></div></div>
-<span id="app-version">v1.2.7.5</span>
+<span id="app-version">v1.2.7.6</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -268,6 +272,6 @@
   </div>
 </div>
 
-<script src="index.js?v=31"></script>
+<script src="index.js?v=32"></script>
 </body>
 </html>
