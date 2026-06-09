@@ -825,7 +825,8 @@
   /* тело — куб + мостик; цвет через --sc на svg, плавный переход */
   .snk-cube, .snk-br, .snk-tail { fill: var(--sc, #4fcac4); transition: fill 0.4s ease; }
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
-  .snk-eye { fill: rgba(20,16,32,0.66); }
+  .snk-eye { fill: rgba(20,16,32,0.42); transform-box: fill-box; transform-origin: center; }
+  .snk-eye-x line { stroke: rgba(22,18,32,0.8); stroke-width: 0.085; stroke-linecap: round; }
   /* контур (как у фигур морского боя) — отдельный слой-силуэт под телом */
   .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
   .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.2; stroke-linejoin: round; stroke-linecap: round; }
@@ -846,6 +847,22 @@
   }
   /* комбо как в морском бою, в левом верхнем углу поля игрока */
   .snake-grid-holder { position: relative; width: 100%; max-width: var(--big-w); margin: 0 auto; flex-shrink: 0; }
+  /* таймер голода — внизу справа под полем */
+  #snake-hunger {
+    position: absolute; bottom: 12px; right: 16px; z-index: 7;
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px;
+    color: var(--ink-soft); pointer-events: none;
+    opacity: 0; transform: translateY(10px) scale(0.85);
+    transition: opacity 0.32s ease, transform 0.32s cubic-bezier(.34,1.4,.5,1), color 0.3s ease;
+  }
+  #snake-hunger.show { opacity: 0.92; transform: translateY(0) scale(1); }
+  #snake-hunger.urgent { color: #ff5d6c; }
+  #snake-hunger.urgent svg, #snake-hunger.urgent #snake-hunger-n { animation: hunger-pulse 0.62s ease-in-out infinite; }
+  #snake-hunger-n { display: inline-block; min-width: 0.7em; text-align: center; }
+  #snake-hunger-n.bump { animation: hunger-bump 0.2s ease; }
+  @keyframes hunger-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.16); } }
+  @keyframes hunger-bump { 0% { transform: scale(1); } 45% { transform: scale(1.4); } 100% { transform: scale(1); } }
   #snake-combo-tag {
     position: absolute; right: 6px; top: -14px; z-index: 8;
     pointer-events: none; opacity: 0;

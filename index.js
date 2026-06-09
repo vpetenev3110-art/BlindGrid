@@ -1697,7 +1697,8 @@ function snakeMakeSide(refs, who) {
     dim: refs.dim, num: refs.num,
     cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
     fruit: null, lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0,
-    comboN: 0, comboXP: 0, lastEat: 0, _eaten: null
+    comboN: 0, comboXP: 0, lastEat: 0, _eaten: null,
+    hungerStart: 0, lastShrink: 0, hitEyes: false
   };
 }
 
@@ -1760,27 +1761,40 @@ function snakePaint(side) {
       };
       edges.push(svgEl('path', { class: 'snk-edge', d: headR(p.c + 0.02, p.r + 0.02, 0.96, 0.48, 0.24) }));
       fills.push(svgEl('path', { class: 'snk-head', d: headR(p.c + 0.08, p.r + 0.08, 0.84, 0.42, 0.18) }));
-      // глазки-полоски у переднего края
+      // глазки у переднего края
       let ew, eh, e1, e2;
       if (d.c === 1)       { ew = 0.09; eh = 0.26; e1 = [p.c + 0.56, p.r + 0.2]; e2 = [p.c + 0.56, p.r + 0.54]; }
       else if (d.c === -1) { ew = 0.09; eh = 0.26; e1 = [p.c + 0.35, p.r + 0.2]; e2 = [p.c + 0.35, p.r + 0.54]; }
       else if (d.r === 1)  { ew = 0.26; eh = 0.09; e1 = [p.c + 0.2, p.r + 0.56]; e2 = [p.c + 0.54, p.r + 0.56]; }
       else                 { ew = 0.26; eh = 0.09; e1 = [p.c + 0.2, p.r + 0.35]; e2 = [p.c + 0.54, p.r + 0.35]; }
-      fills.push(svgEl('rect', { class: 'snk-eye', x: e1[0], y: e1[1], width: ew, height: eh, rx: 0.045 }));
-      fills.push(svgEl('rect', { class: 'snk-eye', x: e2[0], y: e2[1], width: ew, height: eh, rx: 0.045 }));
+      const c1 = [e1[0] + ew / 2, e1[1] + eh / 2], c2 = [e2[0] + ew / 2, e2[1] + eh / 2];
+      if (side.hitEyes) {
+        // мёртвые — крестики
+        [c1, c2].forEach(c => {
+          const s = 0.1, xg = svgEl('g', { class: 'snk-eye-x' });
+          xg.appendChild(svgEl('line', { x1: c[0] - s, y1: c[1] - s, x2: c[0] + s, y2: c[1] + s }));
+          xg.appendChild(svgEl('line', { x1: c[0] - s, y1: c[1] + s, x2: c[0] + s, y2: c[1] - s }));
+          fills.push(xg);
+        });
+      } else {
+        // полоски, чуть под углом (зеркально)
+        const ang = 20;
+        fills.push(svgEl('rect', { class: 'snk-eye', x: e1[0], y: e1[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + ang + ' ' + c1[0] + ' ' + c1[1] + ')' }));
+        fills.push(svgEl('rect', { class: 'snk-eye', x: e2[0], y: e2[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + (-ang) + ' ' + c2[0] + ' ' + c2[1] + ')' }));
+      }
     } else if (idx === last) {
       const prev = side.cells[idx - 1];
       const dr = p.r - prev.r, dc = p.c - prev.c;
-      // хвост: основание по ширине мостика (встык, без ступеньки), короче → меньше
-      const tailPts = (off, l) => {
-        if (dc === 1)  return [[p.c + off, p.r + off], [p.c + off, p.r + 1 - off], [p.c + off + l, p.r + 0.5]];
-        if (dc === -1) return [[p.c + 1 - off, p.r + off], [p.c + 1 - off, p.r + 1 - off], [p.c + 1 - off - l, p.r + 0.5]];
-        if (dr === 1)  return [[p.c + off, p.r + off], [p.c + 1 - off, p.r + off], [p.c + 0.5, p.r + off + l]];
-        return [[p.c + off, p.r + 1 - off], [p.c + 1 - off, p.r + 1 - off], [p.c + 0.5, p.r + 1 - off - l]];
+      // хвост-«карандаш»: до середины по ширине мостика (встык, без ступеньки), сужение ниже
+      const tailPts = (off, mid, far) => {
+        if (dc === 1)  return [[p.c + 0.2, p.r + off], [p.c + 0.2, p.r + 1 - off], [p.c + mid, p.r + 1 - off], [p.c + far, p.r + 0.5], [p.c + mid, p.r + off]];
+        if (dc === -1) return [[p.c + 0.8, p.r + off], [p.c + 0.8, p.r + 1 - off], [p.c + 1 - mid, p.r + 1 - off], [p.c + 1 - far, p.r + 0.5], [p.c + 1 - mid, p.r + off]];
+        if (dr === 1)  return [[p.c + off, p.r + 0.2], [p.c + 1 - off, p.r + 0.2], [p.c + 1 - off, p.r + mid], [p.c + 0.5, p.r + far], [p.c + off, p.r + mid]];
+        return [[p.c + off, p.r + 0.8], [p.c + 1 - off, p.r + 0.8], [p.c + 1 - off, p.r + 1 - mid], [p.c + 0.5, p.r + 1 - far], [p.c + off, p.r + 1 - mid]];
       };
       const toStr = a => a.map(q => q.join(',')).join(' ');
-      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: toStr(tailPts(0.11, 0.57)) }));
-      fills.push(svgEl('polygon', { class: 'snk-tail', points: toStr(tailPts(0.18, 0.5)) }));
+      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: toStr(tailPts(0.11, 0.52, 0.9)) }));
+      fills.push(svgEl('polygon', { class: 'snk-tail', points: toStr(tailPts(0.18, 0.52, 0.85)) }));
     } else {
       edges.push(svgEl('rect', { class: 'snk-edge', x: p.c + 0.03, y: p.r + 0.03, width: 0.94, height: 0.94, rx: 0.27 }));
       fills.push(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));
@@ -1856,6 +1870,8 @@ function snakeCountdownOn(side, onDone) {
 function snakeDeath(side) {
   side.state = 'dying';
   side.lives--;
+  side.hitEyes = true;        // глаза-крестики сразу при столкновении
+  snakePaint(side);
   snakeRenderLives();
   const deathLen = side.cells.length;
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(side.who === 'me' ? 'warning' : 'success'); } catch (e) {}
@@ -1881,6 +1897,9 @@ function snakeDeath(side) {
     snakeCountdownOn(side, () => {
       side.cells = snakeStartCells(3);  // после смерти змейка снова маленькая
       side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
+      side.hitEyes = false;
+      side.hungerStart = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      side.lastShrink = 0;
       snakeSpawnFruit(side);
       snakePaint(side);
       snakeDrawFruit(side);
@@ -1924,23 +1943,54 @@ function snakeOnEat(side) {
   snakeComboTimer = setTimeout(() => { side.comboN = 0; hideComboTag(tag); }, 3000);
 }
 
+function updateHunger(me) {
+  const el = document.getElementById('snake-hunger');
+  const n = document.getElementById('snake-hunger-n');
+  if (!el || !n) return;
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const since = now - (me.hungerStart || now);
+  if (me.state === 'alive' && since >= 3000) {
+    const secs = Math.floor(since / 1000);
+    if (n.textContent !== String(secs)) {
+      n.textContent = secs;
+      n.classList.remove('bump'); void n.offsetWidth; n.classList.add('bump');
+    }
+    el.classList.add('show');
+    el.classList.toggle('urgent', since >= 5000);
+  } else {
+    el.classList.remove('show', 'urgent');
+  }
+}
+
 function snakeTick() {
   if (!snakeState || !snakeState.running) return;
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   [snakeState.me, snakeState.ai].forEach(side => {
     if (side.state !== 'alive') return;
     side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
     const res = snakeAdvance(side, side.dir);
     if (res === 'crash') { snakeDeath(side); return; }
+    let ate = false;
     if (res === 'eat') {
+      ate = true;
+      side.hungerStart = now; side.lastShrink = 0;   // поел — голод сброшен
       if (side.who === 'me') { side.fruitsEaten++; snakeOnEat(side); }
       snakeDrawFruit(side, side._eaten);     // бёрст на месте съедения + новый фрукт с появлением
     }
+    // голод: после 5с без еды — ужимание на 1 клетку/сек; на минимуме — смерть
+    if (!ate && side.hungerStart && (now - side.hungerStart) >= 5000 && (now - side.lastShrink) >= 1000) {
+      side.lastShrink = now;
+      if (side.cells.length > 2) side.cells.pop();
+      else { snakeDeath(side); return; }
+    }
     snakePaint(side);
   });
+  updateHunger(snakeState.me);
 }
 
 function snakeEnd(win, fruits, comboXP) {
   snakeComboReset();
+  { const el = document.getElementById('snake-hunger'); if (el) el.classList.remove('show', 'urgent'); }
   document.getElementById('snake-screen').classList.add('hidden');
   setTimeout(() => { showXpResult(win, fruits, 'snake', Math.round(comboXP || 0)); launchConfetti(win); }, 90);
 }
@@ -1960,6 +2010,7 @@ function startSnake() {
   const ai = snakeMakeSide(aiRefs, 'ai');
   snakeState = { running: false, ended: false, interval: null, me, ai };
   snakeComboReset();
+  { const el = document.getElementById('snake-hunger'); if (el) el.classList.remove('show', 'urgent'); }
   [me, ai].forEach(side => {
     side.cells = snakeStartCells(3);
     snakeSpawnFruit(side);
@@ -1981,6 +2032,8 @@ function startSnake() {
       clearInterval(iv);
       me.dim.classList.remove('show'); ai.dim.classList.remove('show');
       me.num.textContent = ''; ai.num.textContent = '';
+      const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      me.hungerStart = t0; ai.hungerStart = t0; me.lastShrink = 0; ai.lastShrink = 0;
       snakeState.running = true;
       snakeState.interval = setInterval(snakeTick, SNAKE_TICK);
     } else setNum(n);

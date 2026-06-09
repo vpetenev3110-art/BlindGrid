@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=32">
+<link rel="stylesheet" href="index.css?v=33">
 <style>
   /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
      поэтому меню не успевает мелькнуть */
@@ -34,7 +34,7 @@
 </head>
 <body>
 <div id="loader"><div class="loader-spin"></div></div>
-<span id="app-version">v1.2.7.6</span>
+<span id="app-version">v1.2.7.7</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -252,6 +252,10 @@
         </div>
       </div>
     </div>
+    <div id="snake-hunger">
+      <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7.4 V12 L15.4 14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="snake-hunger-n"></span>
+    </div>
   </div>
 
   <div id="overlay" class="hidden">
@@ -272,6 +276,6 @@
   </div>
 </div>
 
-<script src="index.js?v=32"></script>
+<script src="index.js?v=33"></script>
 </body>
 </html>
