@@ -1177,6 +1177,7 @@ window.addEventListener('resize', () => {
 
 document.getElementById('overlay-btn').addEventListener('click', () => {
   document.getElementById('overlay').classList.add('hidden');
+  if (currentGame === 'arena') { startArena(); return; }
   if (currentGame === 'snake') { startSnake(); return; }
   applyMode(lastMode);
   startPlacement();
@@ -1184,6 +1185,7 @@ document.getElementById('overlay-btn').addEventListener('click', () => {
 document.getElementById('overlay-back').addEventListener('click', () => {
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('snake-screen').classList.add('hidden');
+  document.getElementById('arena-screen').classList.add('hidden');
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   renderProfile();
@@ -1261,8 +1263,7 @@ document.getElementById('style-flowers').addEventListener('click', () => { apply
 // экран выбора соперника
 document.getElementById('opp-ai').addEventListener('click', () => {
   document.getElementById('opp-select').classList.add('hidden');
-  if (gameType === 'snake') startSnake();
-  else showModeSelect();
+  showModeSelect();
 });
 document.getElementById('opp-pvp').addEventListener('click', () => {
   // против игрока — появится позже
@@ -1275,8 +1276,12 @@ document.getElementById('opp-back-x').addEventListener('click', () => {
 function showModeSelect() {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const ms = document.getElementById('mode-select');
+  ms.setAttribute('data-gt', gameType);
+  const title = document.getElementById('mode-title');
+  if (title) title.textContent = gameType === 'snake' ? 'Выбери режим змейки' : 'Выбери режим';
   renderProfile();
-  document.getElementById('mode-select').classList.remove('hidden');
+  ms.classList.remove('hidden');
 }
 let lastMode = 'fast';
 function startGameWithMode(mode) {
@@ -1288,6 +1293,8 @@ function startGameWithMode(mode) {
 }
 document.getElementById('mode-fast').addEventListener('click', () => startGameWithMode('fast'));
 document.getElementById('mode-classic').addEventListener('click', () => startGameWithMode('classic'));
+document.getElementById('mode-snake-classic').addEventListener('click', () => { document.getElementById('mode-select').classList.add('hidden'); startSnake(); });
+document.getElementById('mode-snake-arena').addEventListener('click', () => { document.getElementById('mode-select').classList.add('hidden'); startArena(); });
 document.getElementById('mode-back-x').addEventListener('click', () => {
   document.getElementById('mode-select').classList.add('hidden');
   document.getElementById('opp-select').classList.remove('hidden');
@@ -1298,6 +1305,7 @@ makeParticles('opp-particles');
 makeParticles('custom-particles');
 makeParticles('gametype-particles');
 makeParticles('snake-particles');
+makeParticles('arena-particles');
 syncStyleButtons();
 
 renderPlaceControls();
@@ -1804,14 +1812,13 @@ function snakeHeadPath(cx, cy, size, d, R, nn) {
   else { tl = R; tr = R; }
   return roundRectPath(x, y, size, size, tl, tr, br, bl);
 }
-function snakeEyesGroup(side, cx, cy, d) {
-  // единый «канонический» макет глаз (как при движении вправо), повёрнутый на угол головы —
-  // значит в любом направлении глаза выглядят одинаково
+function snakeEyesGroup(hitEyes, cx, cy, d) {
+  // единый «канонический» макет глаз (как при движении вправо), повёрнутый на угол головы
   let fa = 0;
   if (d.c === 1) fa = 0; else if (d.r === 1) fa = 90; else if (d.c === -1) fa = 180; else fa = -90;
   const g = svgEl('g', { transform: 'rotate(' + fa + ' ' + cx + ' ' + cy + ')' });
   const eyes = [{ x: cx + 0.16, y: cy - 0.17, tilt: 18 }, { x: cx + 0.16, y: cy + 0.17, tilt: -18 }];
-  if (side.hitEyes) {
+  if (hitEyes) {
     eyes.forEach(e => {
       const s = 0.1, xg = svgEl('g', { class: 'snk-eye-x' });
       xg.appendChild(svgEl('line', { x1: e.x - s, y1: e.y - s, x2: e.x + s, y2: e.y + s }));
@@ -1824,31 +1831,25 @@ function snakeEyesGroup(side, cx, cy, d) {
   }
   return g;
 }
-function snakePaint(side, t) {
-  if (t == null) t = 1;
-  const pts = snakeLerpCells(side, t);
-  const n = pts.length;
-  side.gBody.innerHTML = '';
-  side._waveEls = [];
+function snakeDrawBody(group, pts, d, hitEyes) {
+  group.innerHTML = '';
+  const waveEls = [];
   const edges = [], fills = [];
   const W = 0.7, EW = 0.9;
-  const d = side.dir, h = pts[0];
-  // обводка тела единой линией (равномерный контур)
+  const n = pts.length;
+  const h = pts[0];
   if (n - 1 >= 2) {
     const list = pts.slice(0, n - 1).map(p => p.x.toFixed(3) + ',' + p.y.toFixed(3)).join(' ');
-    edges.push(svgEl('polyline', { class: 'snk-edge', points: list, fill: 'none', 'stroke-width': EW }));
+    edges.push(svgEl('polyline', { class: 'snk-edge', points: list, 'stroke-width': EW, style: 'fill:none' }));
   }
-  // голова (сегмент 0 — для волны цвета)
   edges.push(svgEl('path', { class: 'snk-edge', d: snakeHeadPath(h.x, h.y, 0.98, d, 0.49, 0.24) }));
   const headFill = svgEl('path', { class: 'snk-head', d: snakeHeadPath(h.x, h.y, 0.84, d, 0.42, 0.18) });
-  fills.push(headFill); side._waveEls.push(headFill);
-  // звенья тела
+  fills.push(headFill); waveEls.push(headFill);
   for (let i = 0; i < n - 2; i++) {
     const a = pts[i], b = pts[i + 1];
     const lk = svgEl('line', { class: 'snk-link', x1: a.x, y1: a.y, x2: b.x, y2: b.y, 'stroke-width': W });
-    fills.push(lk); side._waveEls.push(lk);
+    fills.push(lk); waveEls.push(lk);
   }
-  // хвост-«карандаш» (последний сегмент), по направлению последнего звена
   if (n >= 2) {
     const tip = pts[n - 1], nb = pts[n - 2];
     let dx = tip.x - nb.x, dy = tip.y - nb.y; const ln = Math.hypot(dx, dy) || 1; dx /= ln; dy /= ln;
@@ -1859,17 +1860,24 @@ function snakePaint(side, t) {
     };
     edges.push(svgEl('polygon', { class: 'snk-edge', points: mkTail(0.40, 0.20) }));
     const tailFill = svgEl('polygon', { class: 'snk-tail', points: mkTail(0.33, 0.12) });
-    fills.push(tailFill); side._waveEls.push(tailFill);
+    fills.push(tailFill); waveEls.push(tailFill);
   }
-  // глаза поверх
-  fills.push(snakeEyesGroup(side, h.x, h.y, d));
-  edges.forEach(e => side.gBody.appendChild(e));
-  fills.forEach(e => side.gBody.appendChild(e));
+  fills.push(snakeEyesGroup(hitEyes, h.x, h.y, d));
+  edges.forEach(e => group.appendChild(e));
+  fills.forEach(e => group.appendChild(e));
+  return waveEls;
+}
+function snakePaint(side, t) {
+  if (t == null) t = 1;
+  const pts = snakeLerpCells(side, t);
+  side._waveEls = snakeDrawBody(side.gBody, pts, side.dir, side.hitEyes);
 }
 function snakeWaveColor(side, col) {
-  // волна цвета от блока столкновения (голова, i=0) к хвосту
+  // волна цвета от блока столкновения (голова, i=0) к хвосту — переход вешаем инлайном
+  // (в базовых правилах transition нет, чтобы плавная перерисовка кадров не мазала)
   const step = 70;
   (side._waveEls || []).forEach((el, i) => {
+    el.style.transition = 'fill 0.6s ease, stroke 0.6s ease';
     el.style.transitionDelay = (i * step) + 'ms';
     if (el.tagName && el.tagName.toLowerCase() === 'line') el.style.stroke = col;
     else el.style.fill = col;
@@ -2139,10 +2147,11 @@ function snakeSetDir(r, c) {
 }
 
 window.addEventListener('keydown', e => {
-  if (e.key === 'ArrowUp') snakeSetDir(-1, 0);
-  else if (e.key === 'ArrowDown') snakeSetDir(1, 0);
-  else if (e.key === 'ArrowLeft') snakeSetDir(0, -1);
-  else if (e.key === 'ArrowRight') snakeSetDir(0, 1);
+  const set = (r, c) => { if (arenaState && arenaState.running) arenaSetDir(r, c); else snakeSetDir(r, c); };
+  if (e.key === 'ArrowUp') set(-1, 0);
+  else if (e.key === 'ArrowDown') set(1, 0);
+  else if (e.key === 'ArrowLeft') set(0, -1);
+  else if (e.key === 'ArrowRight') set(0, 1);
 });
 (function () {
   const el = document.getElementById('snake-center');
@@ -2161,6 +2170,290 @@ window.addEventListener('keydown', e => {
   el.addEventListener('mousedown', e => begin(e.clientX, e.clientY));
   el.addEventListener('mouseup', e => finish(e.clientX, e.clientY));
 })();
+
+// ===================== РЕЖИМ «АРЕНА» (общее тороидальное поле, как slither.io) =====================
+const ARENA_COLS = 13, ARENA_ROWS = 20, ARENA_FRUITS = 3;
+let arenaState = null;
+function arenaMod(v, s) { return ((v % s) + s) % s; }
+function arenaMinwrap(d, s) { let x = arenaMod(d, s); if (x > s / 2) x -= s; return x; }
+function arenaWrapDist(a, b) { return Math.abs(arenaMinwrap(a.r - b.r, ARENA_ROWS)) + Math.abs(arenaMinwrap(a.c - b.c, ARENA_COLS)); }
+
+function buildArenaField() {
+  const host = document.getElementById('arena-field');
+  host.innerHTML = '';
+  const svg = svgEl('svg', { class: 'arena-svg', viewBox: '0 0 ' + ARENA_COLS + ' ' + ARENA_ROWS, preserveAspectRatio: 'xMidYMid meet' });
+  const bg = svgEl('g', {});
+  for (let r = 0; r < ARENA_ROWS; r++)
+    for (let c = 0; c < ARENA_COLS; c++)
+      bg.appendChild(svgEl('rect', { class: 'snk-bgc', x: c + 0.06, y: r + 0.06, width: 0.88, height: 0.88, rx: 0.18 }));
+  const gFruit = svgEl('g', {});
+  svg.appendChild(bg); svg.appendChild(gFruit);
+  const mk = who => {
+    const gBody = svgEl('g', {});
+    const gMarks = svgEl('g', {});
+    const cb = SNAKE_BASE[who];
+    gBody.style.setProperty('--sc', cb.sc); gBody.style.setProperty('--sc-h', cb.sch); gBody.style.setProperty('--sc-edge', cb.edge);
+    const inner = svgEl('g', { id: 'arena-inner-' + who });
+    gBody.appendChild(inner);
+    [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].forEach(s => {
+      const u = document.createElementNS(SVGNS, 'use');
+      u.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#arena-inner-' + who);
+      u.setAttribute('href', '#arena-inner-' + who);
+      u.setAttribute('transform', 'translate(' + (s[0] * ARENA_COLS) + ' ' + (s[1] * ARENA_ROWS) + ')');
+      gBody.appendChild(u);
+    });
+    svg.appendChild(gBody); svg.appendChild(gMarks);
+    return { gBody, gMarks, inner };
+  };
+  const aiR = mk('ai'), meR = mk('me');
+  host.appendChild(svg);
+  return { svg, gFruit, me: meR, ai: aiR };
+}
+function arenaMakeSide(refs, who) {
+  return {
+    who, base: SNAKE_BASE[who], gBody: refs.gBody, gMarks: refs.gMarks, _inner: refs.inner,
+    cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
+    lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0, comboXP: 0, _eaten: null, hitEyes: false,
+    fromCells: null, tickAt: 0
+  };
+}
+function arenaSetColor(side, sc, sch) {
+  side.gBody.style.setProperty('--sc', sc);
+  side.gBody.style.setProperty('--sc-h', sch || sc);
+  side.gBody.style.setProperty('--sc-edge', 'color-mix(in srgb, ' + sc + ', #000 32%)');
+}
+function arenaPaintSnake(side, t) {
+  if (t == null) t = 1;
+  const cells = side.cells, from = side.fromCells, m = cells.length;
+  if (!m) { side._inner.innerHTML = ''; return; }
+  const Vc = [cells[0].c], Vr = [cells[0].r];
+  for (let i = 1; i < m; i++) {
+    Vc.push(Vc[i - 1] + arenaMinwrap(cells[i].c - cells[i - 1].c, ARENA_COLS));
+    Vr.push(Vr[i - 1] + arenaMinwrap(cells[i].r - cells[i - 1].r, ARENA_ROWS));
+  }
+  const pts = cells.map((cur, i) => {
+    let fc = Vc[i], fr = Vr[i];
+    if (from && i < from.length) {
+      fc = Vc[i] + arenaMinwrap(from[i].c - cur.c, ARENA_COLS);
+      fr = Vr[i] + arenaMinwrap(from[i].r - cur.r, ARENA_ROWS);
+    }
+    return { x: (fc + (Vc[i] - fc) * t) + 0.5, y: (fr + (Vr[i] - fr) * t) + 0.5 };
+  });
+  side._waveEls = snakeDrawBody(side._inner, pts, side.dir, side.hitEyes);
+}
+function arenaOccupied() {
+  const s = new Set();
+  [arenaState.me, arenaState.ai].forEach(sd => sd.cells.forEach(p => s.add(p.r + '_' + p.c)));
+  arenaState.fruits.forEach(f => s.add(f.r + '_' + f.c));
+  return s;
+}
+function arenaEnsureFruits() {
+  while (arenaState.fruits.length < ARENA_FRUITS) {
+    const occ = arenaOccupied(); const free = [];
+    for (let r = 0; r < ARENA_ROWS; r++) for (let c = 0; c < ARENA_COLS; c++) if (!occ.has(r + '_' + c)) free.push({ r, c });
+    if (!free.length) break;
+    arenaState.fruits.push(free[Math.floor(Math.random() * free.length)]);
+  }
+}
+function arenaDrawFruit(burst) {
+  const g = arenaState.gFruit; g.innerHTML = '';
+  if (burst) g.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.3 }));
+  arenaState.fruits.forEach(f => g.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: f.c + 0.5, cy: f.r + 0.5, r: 0.3 })));
+}
+function arenaNearestFruit(head) {
+  let best = null, bd = 1e9;
+  arenaState.fruits.forEach(f => { const d = arenaWrapDist(head, f); if (d < bd) { bd = d; best = f; } });
+  return best;
+}
+function arenaStartCells(who) {
+  const r = who === 'me' ? ARENA_ROWS - 4 : 3, c = Math.floor(ARENA_COLS / 2);
+  return [{ r, c }, { r, c: arenaMod(c - 1, ARENA_COLS) }, { r, c: arenaMod(c - 2, ARENA_COLS) }];
+}
+function arenaSafeSpawn() {
+  for (let tries = 0; tries < 200; tries++) {
+    const r = Math.floor(Math.random() * ARENA_ROWS), c = Math.floor(Math.random() * ARENA_COLS);
+    const occ = arenaOccupied(); const cells = []; let ok = true;
+    for (let i = 0; i < 3; i++) { const cc = arenaMod(c - i, ARENA_COLS); if (occ.has(r + '_' + cc)) { ok = false; break; } cells.push({ r, c: cc }); }
+    if (ok) return cells;
+  }
+  return [{ r: 0, c: 2 }, { r: 0, c: 1 }, { r: 0, c: 0 }];
+}
+function arenaAdvance(side, dir) {
+  const head = side.cells[0];
+  const nr = arenaMod(head.r + dir.r, ARENA_ROWS), nc = arenaMod(head.c + dir.c, ARENA_COLS);
+  const fi = arenaState.fruits.findIndex(f => f.r === nr && f.c === nc);
+  side.cells.unshift({ r: nr, c: nc });
+  if (fi >= 0) { side._eaten = { r: nr, c: nc }; arenaState.fruits.splice(fi, 1); return 'eat'; }
+  side.cells.pop();
+  return 'ok';
+}
+function arenaAiDir(side) {
+  const opp = (side.who === 'ai') ? arenaState.me : arenaState.ai;
+  const head = side.cells[0];
+  const all = [{ r: 0, c: 1 }, { r: 0, c: -1 }, { r: 1, c: 0 }, { r: -1, c: 0 }];
+  const opts = all.filter(d => !(d.r === -side.dir.r && d.c === -side.dir.c));
+  const oppSet = new Set(opp.state === 'alive' ? opp.cells.map(p => p.r + '_' + p.c) : []);
+  const selfSet = new Set(side.cells.slice(0, -1).map(p => p.r + '_' + p.c));
+  const cellOf = d => ({ r: arenaMod(head.r + d.r, ARENA_ROWS), c: arenaMod(head.c + d.c, ARENA_COLS) });
+  let pool = opts.filter(d => { const n = cellOf(d); return !oppSet.has(n.r + '_' + n.c) && !selfSet.has(n.r + '_' + n.c); });
+  if (!pool.length) pool = opts.filter(d => { const n = cellOf(d); return !oppSet.has(n.r + '_' + n.c); });
+  if (!pool.length) pool = opts;
+  const fruit = arenaNearestFruit(head);
+  if (fruit) pool.sort((a, b) => arenaWrapDist(cellOf(a), fruit) - arenaWrapDist(cellOf(b), fruit));
+  return pool[0] || side.dir;
+}
+function arenaRenderLives() {
+  if (!arenaState) return;
+  const draw = (id, lives) => {
+    const el = document.getElementById(id); if (!el) return;
+    let h = ''; for (let i = 0; i < SNAKE_LIVES; i++) h += '<i class="' + (i < lives ? '' : 'lost') + '"></i>';
+    el.innerHTML = h;
+  };
+  draw('arena-me-hearts', arenaState.me.lives);
+  draw('arena-ai-hearts', arenaState.ai.lives);
+}
+function arenaRenderLoop() {
+  if (!arenaState) return;
+  const now = snakeNow();
+  [arenaState.me, arenaState.ai].forEach(side => {
+    if (side && side.state === 'alive' && side._inner) {
+      const t = (arenaState.running && side.tickAt) ? Math.min(1, (now - side.tickAt) / SNAKE_TICK) : 1;
+      arenaPaintSnake(side, t);
+    }
+  });
+  arenaState._raf = requestAnimationFrame(arenaRenderLoop);
+}
+function arenaDeath(side) {
+  side.state = 'dying';
+  side.lives--;
+  side.hitEyes = true;
+  side.fromCells = null;
+  arenaPaintSnake(side, 1);
+  arenaRenderLives();
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(side.who === 'me' ? 'warning' : 'success'); } catch (e) {}
+  if (side.lives <= 0) {
+    snakeWaveColor(side, 'var(--miss)');
+    arenaSetColor(side, 'var(--miss)', 'var(--miss)');
+    side.gMarks.innerHTML = '';
+    side.cells.forEach((p, idx) => {
+      const m = svgEl('rect', { class: 'snk-mark', x: p.c + 0.33, y: p.r + 0.33, width: 0.34, height: 0.34, rx: 0.17 });
+      m.style.animationDelay = (0.3 + idx * 0.07).toFixed(2) + 's';
+      side.gMarks.appendChild(m);
+    });
+    setTimeout(() => { side.state = 'dead'; arenaCheckOver(); }, 800 + side.cells.length * 90);
+    return;
+  }
+  const col = SNAKE_DMG[side.lives];
+  snakeWaveColor(side, col);
+  arenaSetColor(side, col, col);
+  setTimeout(() => {
+    side.gMarks.innerHTML = '';
+    side.cells = arenaSafeSpawn();
+    side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
+    side.fromCells = null; side.tickAt = 0; side.hitEyes = false;
+    arenaSetColor(side, side.base.sc, side.base.sch);   // вернуть базовый цвет (важно различать на одном поле)
+    arenaPaintSnake(side, 1);
+    side.state = 'alive';
+  }, 1100);
+}
+function arenaTick() {
+  if (!arenaState || !arenaState.running) return;
+  const now = snakeNow();
+  [arenaState.me, arenaState.ai].forEach(side => {
+    if (side.state !== 'alive') return;
+    side.fromCells = side.cells.map(p => ({ r: p.r, c: p.c }));
+    side.dir = (side.who === 'me') ? side.nextDir : arenaAiDir(side);
+    const res = arenaAdvance(side, side.dir);
+    if (res === 'eat') {
+      if (side.who === 'me') side.fruitsEaten++;
+      arenaEnsureFruits();
+      arenaDrawFruit(side._eaten);
+    }
+    side.tickAt = now;
+  });
+  const me = arenaState.me, ai = arenaState.ai;
+  const meHit = me.state === 'alive' && ai.state === 'alive' && ai.cells.some(p => p.r === me.cells[0].r && p.c === me.cells[0].c);
+  const aiHit = ai.state === 'alive' && me.state === 'alive' && me.cells.some(p => p.r === ai.cells[0].r && p.c === ai.cells[0].c);
+  if (meHit) arenaDeath(me);
+  if (aiHit) arenaDeath(ai);
+}
+function arenaCheckOver() {
+  if (!arenaState || arenaState.ended) return;
+  const me = arenaState.me, ai = arenaState.ai;
+  if (me.state === 'dead' || ai.state === 'dead') {
+    arenaState.ended = true;
+    arenaStop();
+    const playerWon = me.state !== 'dead' && ai.state === 'dead';
+    setTimeout(() => arenaEnd(playerWon, me.fruitsEaten, me.comboXP), 850);
+  }
+}
+function arenaEnd(win, fruits, comboXP) {
+  document.getElementById('arena-screen').classList.add('hidden');
+  setTimeout(() => { showXpResult(win, fruits, 'snake', Math.round(comboXP || 0)); launchConfetti(win); }, 90);
+}
+function arenaStop() {
+  if (arenaState) { arenaState.running = false; clearInterval(arenaState.interval); if (arenaState._raf) cancelAnimationFrame(arenaState._raf); }
+}
+function arenaSetDir(r, c) {
+  if (!arenaState || !arenaState.running) return;
+  const me = arenaState.me;
+  if (me.state !== 'alive') return;
+  if (r === -me.dir.r && c === -me.dir.c) return;
+  me.nextDir = { r, c };
+}
+function startArena() {
+  currentGame = 'arena';
+  if (arenaState && arenaState._raf) cancelAnimationFrame(arenaState._raf);
+  if (snakeState && snakeState._raf) cancelAnimationFrame(snakeState._raf);
+  setGameUIHidden(true);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('mode-select').classList.add('hidden');
+  document.getElementById('opp-select').classList.add('hidden');
+  const refs = buildArenaField();
+  const me = arenaMakeSide(refs.me, 'me'), ai = arenaMakeSide(refs.ai, 'ai');
+  arenaState = { running: false, ended: false, interval: null, _raf: 0, svg: refs.svg, gFruit: refs.gFruit, me, ai, fruits: [] };
+  me.cells = arenaStartCells('me'); ai.cells = arenaStartCells('ai');
+  arenaEnsureFruits(); arenaDrawFruit();
+  arenaPaintSnake(me, 1); arenaPaintSnake(ai, 1);
+  arenaRenderLives();
+  arenaState._raf = requestAnimationFrame(arenaRenderLoop);
+  document.getElementById('arena-screen').classList.remove('hidden');
+  const dim = document.getElementById('arena-dim'), num = document.getElementById('arena-num');
+  dim.classList.add('show');
+  let n = 3;
+  const setNum = v => { num.textContent = v; num.style.animation = 'none'; void num.offsetWidth; num.style.animation = ''; };
+  setNum(n);
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(iv); dim.classList.remove('show'); num.textContent = '';
+      arenaState.running = true;
+      arenaState.interval = setInterval(arenaTick, SNAKE_TICK);
+    } else setNum(n);
+  }, 1000);
+}
+(function () {
+  const el = document.getElementById('arena-center');
+  if (!el) return;
+  let sx = 0, sy = 0, on = false;
+  const begin = (x, y) => { sx = x; sy = y; on = true; };
+  const finish = (x, y) => {
+    if (!on) return; on = false;
+    const dx = x - sx, dy = y - sy;
+    if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return;
+    if (Math.abs(dx) > Math.abs(dy)) arenaSetDir(0, dx > 0 ? 1 : -1);
+    else arenaSetDir(dy > 0 ? 1 : -1, 0);
+  };
+  el.addEventListener('touchstart', e => { const t = e.touches[0]; begin(t.clientX, t.clientY); }, { passive: true });
+  el.addEventListener('touchend', e => { const t = e.changedTouches[0]; finish(t.clientX, t.clientY); }, { passive: true });
+  el.addEventListener('mousedown', e => begin(e.clientX, e.clientY));
+  el.addEventListener('mouseup', e => finish(e.clientX, e.clientY));
+})();
+document.getElementById('arena-back-x').addEventListener('click', () => {
+  arenaStop();
+  document.getElementById('arena-screen').classList.add('hidden');
+  document.getElementById('opp-select').classList.remove('hidden');
+});
 
 document.getElementById('snake-back-x').addEventListener('click', () => {
   snakeStop();
