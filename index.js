@@ -1458,58 +1458,96 @@ function showXpResult(win, count, kind, extra) {
   if (fruitIcon) { fruitIcon.classList.remove('combo'); fruitIcon.classList.toggle('block', kind === 'sea'); fruitIcon.style.display = (count > 0 ? '' : 'none'); }
   setRankVisuals(rankInfo(before), true);
   setAvatar(document.getElementById('ov-ava'));
-  document.getElementById('ov-xp-ghost').style.opacity = '0';
+  const ghost = document.getElementById('ov-xp-ghost');
+  const fill = document.getElementById('ov-xp-fill');
+  const beforeRI = rankInfo(before);
+  ghost.className = ''; ghost.style.transition = 'none'; ghost.style.opacity = '0'; ghost.style.width = (beforeRI.frac * 100) + '%';
   tallyN.style.color = '';
   tallyN.textContent = count > 0 ? count : '';
-  let running = base;
+  let running = 0;                          // накопитель: 0 → gained
   gainEl.classList.remove('show', 'minus');
   gainEl.textContent = ovGainText(running);
-  gainEl.classList.toggle('minus', running < 0);
   overlay.classList.remove('hidden');
 
   const haptic = () => { try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {} };
-  const toBar = () => {
-    gainEl.textContent = ovGainText(gained);
-    gainEl.classList.toggle('minus', gained < 0);
-    setTimeout(() => animateXpBarColored(before, target, () => {
-      setTimeout(() => overlay.classList.add('act-show'), 250);
-    }), 300);
+  // доля внутри ранга старта (зажим на границах, чтобы не прыгало)
+  const fracFor = (xp) => { const ri = rankInfo(Math.max(0, xp)); return ri.index > beforeRI.index ? 1 : (ri.index < beforeRI.index ? 0 : ri.frac); };
+  const gainLabel = () => { gainEl.textContent = ovGainText(running); gainEl.classList.toggle('minus', running < 0); };
+  // живое обновление бара ПАРАЛЛЕЛЬНО с подсчётом
+  const liveBar = () => {
+    const xpNow = before + running;
+    if (xpNow >= before) {
+      // плюс: синяя линия растёт как индикатор начисления, заливка пока стоит
+      ghost.classList.remove('loss'); ghost.classList.add('gain');
+      ghost.style.opacity = '1'; ghost.style.transition = 'width 0.18s linear';
+      ghost.style.width = (fracFor(xpNow) * 100) + '%';
+    } else {
+      // минус: заливка убывает параллельно, сзади красная на старте
+      ghost.classList.remove('gain'); ghost.classList.add('loss');
+      ghost.style.opacity = '1'; ghost.style.transition = 'opacity 0.2s ease';
+      ghost.style.width = (beforeRI.frac * 100) + '%';
+      fill.style.transition = 'width 0.18s linear';
+      fill.style.width = (fracFor(xpNow) * 100) + '%';
+    }
   };
-  // этап 2: опыт за комбо — просто жёлтая надпись «Комбо», очки идут в счётчик
-  const comboPhase = () => {
-    if (extra <= 0) { toBar(); return; }
+  // финал: при плюсе заливка догоняет синий; при минусе докручиваем и гасим красный
+  const finishBar = () => {
+    gainEl.textContent = ovGainText(gained); gainEl.classList.toggle('minus', gained < 0);
+    if (target >= before) {
+      fill.style.transition = '';
+      animateXpBar(before, target, () => {
+        ghost.style.transition = 'opacity 0.5s ease'; ghost.style.opacity = '0';
+        setTimeout(() => overlay.classList.add('act-show'), 250);
+      });
+    } else {
+      fill.style.transition = 'width 0.3s ease';
+      fill.style.width = (fracFor(target) * 100) + '%';
+      setTimeout(() => {
+        ghost.style.transition = 'opacity 0.55s ease'; ghost.style.opacity = '0';
+        setTimeout(() => overlay.classList.add('act-show'), 250);
+      }, 340);
+    }
+  };
+
+  // фазы начисления — бар двигается синхронно
+  const penaltyPhase = (next) => {                  // штраф −100 (поражение)
+    if (base >= 0) { next(); return; }
+    const pstep = () => {
+      if (running <= base) { next(); return; }
+      running -= Math.min(20, running - base);
+      gainLabel(); liveBar(); haptic();
+      setTimeout(pstep, 120);
+    };
+    pstep();
+  };
+  const blockPhase = (next) => {                    // блоки/фрукты
+    if (count <= 0) { next(); return; }
+    let left = count;
+    const bstep = () => {
+      if (left <= 0) { next(); return; }
+      left--; running += 10; tallyN.textContent = left;
+      gainLabel(); liveBar(); haptic();
+      setTimeout(bstep, 150);
+    };
+    bstep();
+  };
+  const comboPhase = (next) => {                    // опыт за комбо
+    if (extra <= 0) { next(); return; }
     if (fruitIcon) fruitIcon.style.display = 'none';
-    tallyN.textContent = 'Комбо';
-    tallyN.style.color = '#ffd24a';
+    tallyN.textContent = 'Комбо'; tallyN.style.color = '#ffd24a';
     let cLeft = extra;
     const cstep = () => {
-      if (cLeft <= 0) { toBar(); return; }
+      if (cLeft <= 0) { next(); return; }
       const d = Math.min(10, cLeft); cLeft -= d; running += d;
-      gainEl.textContent = ovGainText(running);
-      gainEl.classList.toggle('minus', running < 0);
-      haptic();
+      gainLabel(); liveBar(); haptic();
       setTimeout(cstep, 120);
     };
-    setTimeout(cstep, 450);
+    setTimeout(cstep, 400);
   };
 
   setTimeout(() => overlay.classList.add('settled'), 1200);
   setTimeout(() => { ovxp.classList.add('show'); gainEl.classList.add('show'); }, 1650);
-  // этап 1: блоки/фрукты (в поражении блоков нет — сразу к комбо/бару)
-  setTimeout(() => {
-    if (count <= 0) { comboPhase(); return; }
-    let left = count;
-    const step = () => {
-      if (left <= 0) { comboPhase(); return; }
-      left--; running += 10;
-      tallyN.textContent = left;
-      gainEl.textContent = ovGainText(running);
-      gainEl.classList.toggle('minus', running < 0);
-      haptic();
-      setTimeout(step, 150);
-    };
-    step();
-  }, 2150);
+  setTimeout(() => { penaltyPhase(() => blockPhase(() => comboPhase(() => finishBar()))); }, 2150);
 }
 
 renderProfile();
