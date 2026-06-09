@@ -794,42 +794,59 @@
   /* ===== ЗМЕЙКА ===== */
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 4px;
+    align-items: center; justify-content: center; gap: 6px;
     padding: 2px 14px 14px; overflow: hidden; touch-action: none;
+    --big-w: min(94vw, 392px);
+    --mini-w: min(38vw, 128px);
   }
   .snake-board-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
-  .mini-wrap { --snake-w: min(40vw, 140px); }
-  .big-wrap  { --snake-w: min(90vw, 360px); }
-  .snake-board-wrap .board-label { max-width: var(--snake-w); width: 100%; margin: 0 auto 4px; }
+  .big-wrap  { --snake-w: var(--big-w); }
+  .mini-wrap { --snake-w: var(--mini-w); }
+  /* поле противника выравнивается по левому краю большого поля (как мини-доска в морском бою) */
+  .mini-wrap .board-label, .mini-wrap .snake-grid {
+    margin-left: max(0px, calc((100% - var(--big-w)) / 2)); margin-right: auto;
+  }
+  .big-wrap .board-label, .big-wrap .snake-grid { margin-left: auto; margin-right: auto; }
+  .snake-board-wrap .board-label { max-width: var(--snake-w); width: 100%; margin-bottom: 4px; }
   .snake-grid {
     position: relative;
-    width: 100%; max-width: var(--snake-w); aspect-ratio: 1; margin: 0 auto;
-    display: grid; grid-template-columns: repeat(11, 1fr); gap: 0; padding: 5px;
-    border-radius: 16px; background: var(--panel-bg, rgba(255,255,255,0.4));
+    width: 100%; max-width: var(--snake-w); aspect-ratio: 1;
+    border-radius: 14px; padding: 5px;
+    background: var(--panel-bg, rgba(255,255,255,0.4));
     box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06));
   }
-  /* пустые клетки невидимы — поле выглядит цельной панелью; тело змейки соединено (без зазоров) */
-  .snake-cell { aspect-ratio: 1; background: transparent; }
-  .snake-cell.seg { border-radius: 2px; }
-  .snake-cell.head { border-radius: 30%; transform: scale(1.24); z-index: 3; position: relative;
-    box-shadow: 0 0 8px rgba(0,0,0,0.18); }
-  .snake-cell.head.grow { animation: snake-grow 0.2s ease; }
-  @keyframes snake-grow { 0% { transform: scale(0.7); } 60% { transform: scale(1.36); } 100% { transform: scale(1.24); } }
-  .snake-cell.fruit { background: radial-gradient(circle at 38% 34%, #ffa6ad, #ff5d8f 70%); box-shadow: 0 0 7px rgba(255,93,115,0.6);
-    border-radius: 50%; transform: scale(0.66); z-index: 2; }
-  #snake-divider { height: 6px; }
+  .snake-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  /* фон — клетки как в прошлой версии (мягкие, с зазором) */
+  .snk-bgc { fill: var(--btn-soft-bg); }
+  /* тело — куб + мостик в цвете морского боя; цвет задаётся через --sc на svg */
+  .snk-cube, .snk-br { fill: var(--sc, #8b7cff); transition: fill 0.45s ease 0.25s; }
+  .snk-head { fill: var(--sc-h, #6c5ce0); transition: fill 0.45s ease 0.25s; }
+  .snk-fruit-dot { fill: var(--hit); }
+  /* анимация смерти: точки → ромб → квадрат, затем потемнение */
+  .snake-svg.dead .snk-cube, .snake-svg.dead .snk-br { fill: var(--sc-dark, #2c2940); }
+  .snake-svg.dead .snk-head { fill: var(--sc-dark, #2c2940); }
+  .snk-mark { fill: var(--hit-dot, #fff); transform-box: fill-box; transform-origin: center;
+    animation: snk-mark 0.75s cubic-bezier(.4,0,.2,1) both; }
+  @keyframes snk-mark {
+    0%   { transform: rotate(45deg) scale(0);   rx: 0.5px; opacity: 0; }
+    18%  { transform: rotate(45deg) scale(0.55); rx: 0.5px; opacity: 1; }
+    48%  { transform: rotate(45deg) scale(1);   rx: 0.5px; }
+    70%  { transform: rotate(45deg) scale(1);   rx: 0.05px; }
+    100% { transform: rotate(0deg)  scale(1);   rx: 0.03px; }
+  }
+  #snake-divider { height: 4px; }
   /* затемнение поля + отсчёт */
   .snake-dim {
-    position: absolute; inset: 0; border-radius: 16px; z-index: 5;
-    background: rgba(10,8,20,0.55); backdrop-filter: blur(1px);
+    position: absolute; inset: 0; border-radius: 14px; z-index: 5;
+    background: rgba(10,8,20,0.5);
     display: flex; align-items: center; justify-content: center;
     opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
   }
   .snake-dim.show { opacity: 1; }
   .snake-num { font-family: 'Fredoka', sans-serif; font-weight: 700; color: #fff;
-    font-size: 12vw; line-height: 1; text-shadow: 0 4px 18px rgba(0,0,0,0.5);
+    font-size: 64px; line-height: 1; text-shadow: 0 4px 18px rgba(0,0,0,0.5);
     animation: snake-num-pop 0.9s ease; }
-  .mini .snake-num { font-size: 7vw; }
+  .mini .snake-num { font-size: 30px; }
   @keyframes snake-num-pop { 0% { transform: scale(0.4); opacity: 0; } 30% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
   /* кружки-жизни (цвет как у прогресс-бара флота) */
   .snake-lives { display: inline-flex; gap: 5px; align-items: center; }

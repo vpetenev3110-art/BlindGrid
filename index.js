@@ -1466,53 +1466,57 @@ renderProfile();
 const SNAKE_N = 11;
 const SNAKE_TICK = 170;
 const SNAKE_LIVES = 3;
-const SNAKE_COL = { me: '#2bb3ac', ai: '#8b7cff', blue: '#3b82f6', red: '#ef4444' };
+const SVGNS = 'http://www.w3.org/2000/svg';
+// цвета из морского боя: игрок — бирюзовый (как фигура), ИИ — фиолетовый (как убитая фигура)
+const SNAKE_COLORS = {
+  me: { sc: '#4fcac4', sch: '#2bb3ac', scd: '#27514e' },
+  ai: { sc: '#8b7cff', sch: '#6c5ce0', scd: '#2c2940' }
+};
 let snakeState = null;
 
-function buildSnakeGrid(id) {
-  const g = document.getElementById(id);
-  if (!g) return null;
-  if (!g.querySelector('.snake-dim')) {
-    g.innerHTML = '';
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < SNAKE_N * SNAKE_N; i++) {
-      const c = document.createElement('div');
-      c.className = 'snake-cell';
-      frag.appendChild(c);
-    }
-    g.appendChild(frag);
-    const dim = document.createElement('div');
-    dim.className = 'snake-dim';
-    const num = document.createElement('span');
-    num.className = 'snake-num';
-    dim.appendChild(num);
-    g.appendChild(dim);
-  }
-  return g;
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
 }
 
-function snakeMakeSide(gridId, who) {
-  const g = document.getElementById(gridId);
+function buildSnakeGrid(id, who) {
+  const g = document.getElementById(id);
+  if (!g) return;
+  g.innerHTML = '';
+  const svg = svgEl('svg', { class: 'snake-svg', viewBox: '0 0 11 11', preserveAspectRatio: 'xMidYMid meet' });
+  const c = SNAKE_COLORS[who];
+  svg.style.setProperty('--sc', c.sc);
+  svg.style.setProperty('--sc-h', c.sch);
+  svg.style.setProperty('--sc-dark', c.scd);
+  const bg = svgEl('g', {});
+  for (let r = 0; r < SNAKE_N; r++)
+    for (let col = 0; col < SNAKE_N; col++)
+      bg.appendChild(svgEl('rect', { class: 'snk-bgc', x: col + 0.07, y: r + 0.07, width: 0.86, height: 0.86, rx: 0.16 }));
+  const gFruit = svgEl('g', {});
+  const gBody = svgEl('g', {});
+  const gMarks = svgEl('g', {});
+  svg.appendChild(bg); svg.appendChild(gFruit); svg.appendChild(gBody); svg.appendChild(gMarks);
+  g.appendChild(svg);
+  const dimEl = document.createElement('div'); dimEl.className = 'snake-dim';
+  const num = document.createElement('span'); num.className = 'snake-num';
+  dimEl.appendChild(num); g.appendChild(dimEl);
+  return { svg, gFruit, gBody, gMarks, dim: dimEl, num };
+}
+
+function snakeMakeSide(refs, who) {
   return {
-    who, gridId,
-    els: g.querySelectorAll('.snake-cell'),
-    dim: g.querySelector('.snake-dim'),
-    num: g.querySelector('.snake-num'),
+    who, refs,
+    svg: refs.svg, gFruit: refs.gFruit, gBody: refs.gBody, gMarks: refs.gMarks,
+    dim: refs.dim, num: refs.num,
     cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
-    fruit: null, lives: SNAKE_LIVES, state: 'alive', color: SNAKE_COL[who],
-    fruitsEaten: 0
+    fruit: null, lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0
   };
 }
 
 function snakeCenterStart() {
   const mid = Math.floor(SNAKE_N / 2);
   return [{ r: mid, c: mid + 1 }, { r: mid, c: mid }, { r: mid, c: mid - 1 }];
-}
-
-function snakeColorFor(side) {
-  if (side.lives >= SNAKE_LIVES) return SNAKE_COL[side.who];
-  if (side.lives === 2) return SNAKE_COL.blue;
-  return SNAKE_COL.red;
 }
 
 function snakeSpawnFruit(side) {
@@ -1524,34 +1528,30 @@ function snakeSpawnFruit(side) {
   side.fruit = free.length ? free[Math.floor(Math.random() * free.length)] : null;
 }
 
-function snakeClearCells(side) {
-  const els = side.els;
-  for (let i = 0; i < els.length; i++) { els[i].className = 'snake-cell'; els[i].style.cssText = ''; }
-}
-
-function snakePaint(side, growHead) {
-  const els = side.els, N = SNAKE_N;
-  snakeClearCells(side);
-  if (side.fruit) {
-    const f = els[side.fruit.r * N + side.fruit.c];
-    if (f) f.className = 'snake-cell fruit';
-  }
-  const last = side.cells.length - 1;
-  side.cells.forEach((p, idx) => {
-    const e = els[p.r * N + p.c];
-    if (!e) return;
-    e.style.background = side.color;
-    if (idx === 0) {
-      e.className = 'snake-cell seg head' + (growHead ? ' grow' : '');
-    } else if (idx === last) {
-      const prev = side.cells[idx - 1];
-      const dr = p.r - prev.r, dc = p.c - prev.c;
-      const deg = dc === 1 ? 90 : dc === -1 ? 270 : dr === 1 ? 180 : 0;
-      e.className = 'snake-cell seg tail';
-      e.style.clipPath = 'polygon(50% 4%, 96% 96%, 4% 96%)';
-      e.style.transform = 'rotate(' + deg + 'deg)';
+function snakePaint(side) {
+  side.gFruit.innerHTML = '';
+  side.gBody.innerHTML = '';
+  if (side.fruit)
+    side.gFruit.appendChild(svgEl('circle', { class: 'snk-fruit-dot', cx: side.fruit.c + 0.5, cy: side.fruit.r + 0.5, r: 0.3 }));
+  // мостики между соседними блоками
+  for (let i = 0; i < side.cells.length - 1; i++) {
+    const a = side.cells[i], b = side.cells[i + 1];
+    let attrs;
+    if (a.r === b.r) {
+      const x = Math.min(a.c, b.c) + 0.5;
+      attrs = { class: 'snk-br', x: x, y: a.r + 0.22, width: 1, height: 0.56, rx: 0.1 };
     } else {
-      e.className = 'snake-cell seg';
+      const y = Math.min(a.r, b.r) + 0.5;
+      attrs = { class: 'snk-br', x: a.c + 0.22, y: y, width: 0.56, height: 1, rx: 0.1 };
+    }
+    side.gBody.appendChild(svgEl('rect', attrs));
+  }
+  // кубы
+  side.cells.forEach((p, idx) => {
+    if (idx === 0) {
+      side.gBody.appendChild(svgEl('rect', { class: 'snk-head', x: p.c + 0.08, y: p.r + 0.08, width: 0.84, height: 0.84, rx: 0.4 }));
+    } else {
+      side.gBody.appendChild(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));
     }
   });
 }
@@ -1601,75 +1601,44 @@ function snakeRenderLives() {
   draw('snake-me-hearts', snakeState.me.lives);
 }
 
-// плавная смена цвета тела от головы к хвосту (волной)
-function snakeSweepColor(side, color, onDone) {
-  side.cells.forEach((p, idx) => {
-    const e = side.els[p.r * SNAKE_N + p.c];
-    if (!e) return;
-    e.style.transition = 'background-color 0.3s ease ' + (idx * 0.05).toFixed(2) + 's';
-    e.style.background = color;
-  });
-  setTimeout(onDone, Math.min(360 + side.cells.length * 50, 1300));
-}
-
-// растворение тела от головы к хвосту
-function snakeDissolve(side, onDone) {
-  side.cells.forEach((p, idx) => {
-    const e = side.els[p.r * SNAKE_N + p.c];
-    if (!e) return;
-    const d = (idx * 0.045).toFixed(2);
-    e.style.transition = 'transform 0.4s ease ' + d + 's, opacity 0.4s ease ' + d + 's';
-    e.style.transformOrigin = 'center';
-    e.style.transform = 'scale(0)';
-    e.style.opacity = '0';
-  });
-  setTimeout(onDone, Math.min(420 + side.cells.length * 45, 1500));
-}
-
 function snakeCountdownOn(side, onDone) {
   side.dim.classList.add('show');
   let n = 3;
-  side.num.textContent = n;
-  side.num.style.animation = 'none'; void side.num.offsetWidth; side.num.style.animation = '';
+  const setN = v => { side.num.textContent = v; side.num.style.animation = 'none'; void side.num.offsetWidth; side.num.style.animation = ''; };
+  setN(n);
   const iv = setInterval(() => {
     n--;
-    if (n <= 0) {
-      clearInterval(iv);
-      side.dim.classList.remove('show');
-      side.num.textContent = '';
-      onDone();
-    } else {
-      side.num.textContent = n;
-      side.num.style.animation = 'none'; void side.num.offsetWidth; side.num.style.animation = '';
-    }
+    if (n <= 0) { clearInterval(iv); side.dim.classList.remove('show'); side.num.textContent = ''; onDone(); }
+    else setN(n);
   }, 1000);
 }
 
-function snakeStartDeath(side) {
+// смерть: змейка застывает, на каждом блоке точка → ромб → квадрат, затем тело темнеет (размер сохраняется)
+function snakeDeath(side) {
   side.state = 'dying';
   side.lives--;
   snakeRenderLives();
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(side.who === 'me' ? 'warning' : 'success'); } catch (e) {}
-  if (side.lives <= 0) {
-    // финальное столкновение — красная змейка растворяется
-    side.color = SNAKE_COL.red;
-    snakeSweepColor(side, SNAKE_COL.red, () => {
-      snakeDissolve(side, () => { side.state = 'dead'; snakeCheckOver(); });
+  side.gMarks.innerHTML = '';
+  side.cells.forEach((p, idx) => {
+    const m = svgEl('rect', { class: 'snk-mark', x: p.c + 0.33, y: p.r + 0.33, width: 0.34, height: 0.34, rx: 0.17 });
+    m.style.animationDelay = (idx * 0.05).toFixed(2) + 's';
+    side.gMarks.appendChild(m);
+  });
+  setTimeout(() => { side.svg.classList.add('dead'); }, 380);
+  const dur = 850 + side.cells.length * 50;
+  setTimeout(() => {
+    if (side.lives <= 0) { side.state = 'dead'; snakeCheckOver(); return; }
+    snakeCountdownOn(side, () => {
+      side.gMarks.innerHTML = '';
+      side.svg.classList.remove('dead');
+      side.cells = snakeCenterStart();
+      side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
+      snakeSpawnFruit(side);
+      snakePaint(side);
+      side.state = 'alive';
     });
-  } else {
-    const newColor = snakeColorFor(side); // 2 жизни → синий, 1 → красный
-    snakeSweepColor(side, newColor, () => {
-      side.color = newColor;
-      side.dim.classList.add('show');
-      snakeCountdownOn(side, () => {
-        side.cells = snakeCenterStart();
-        side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
-        snakeSpawnFruit(side);
-        snakePaint(side);
-        side.state = 'alive';
-      });
-    });
-  }
+  }, dur);
 }
 
 function snakeCheckOver() {
@@ -1679,7 +1648,7 @@ function snakeCheckOver() {
     snakeState.ended = true;
     snakeStop();
     const playerWon = me.state !== 'dead' && ai.state === 'dead';
-    setTimeout(() => snakeEnd(playerWon, me.fruitsEaten), 750);
+    setTimeout(() => snakeEnd(playerWon, me.fruitsEaten), 850);
   }
 }
 
@@ -1689,9 +1658,9 @@ function snakeTick() {
     if (side.state !== 'alive') return;
     side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
     const res = snakeAdvance(side, side.dir);
-    if (res === 'crash') { snakeStartDeath(side); return; }
+    if (res === 'crash') { snakeDeath(side); return; }
     if (res === 'eat' && side.who === 'me') side.fruitsEaten++;
-    snakePaint(side, res === 'eat');
+    snakePaint(side);
   });
 }
 
@@ -1709,20 +1678,19 @@ function startSnake() {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('opp-select').classList.add('hidden');
-  buildSnakeGrid('snake-ai');
-  buildSnakeGrid('snake-me');
-  const me = snakeMakeSide('snake-me', 'me');
-  const ai = snakeMakeSide('snake-ai', 'ai');
+  const meRefs = buildSnakeGrid('snake-me', 'me');
+  const aiRefs = buildSnakeGrid('snake-ai', 'ai');
+  const me = snakeMakeSide(meRefs, 'me');
+  const ai = snakeMakeSide(aiRefs, 'ai');
   snakeState = { running: false, ended: false, interval: null, me, ai };
   [me, ai].forEach(side => {
     side.cells = snakeCenterStart();
-    snakeClearCells(side);
     snakeSpawnFruit(side);
     snakePaint(side);
   });
   snakeRenderLives();
   document.getElementById('snake-screen').classList.remove('hidden');
-  // стартовый отсчёт 3-2-1 на обоих полях, потом поехали
+  // стартовый отсчёт 3-2-1 на обоих полях
   me.dim.classList.add('show'); ai.dim.classList.add('show');
   let n = 3;
   const setNum = v => {
