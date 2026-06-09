@@ -640,6 +640,7 @@ function startBattle() {
   renderBattleBoards();
   renderShipLayer('battle-my-board', state.player.ships);
   updateFleetFills();
+  turnAngle = 0; turnSide = null; turnLastFlip = 0;   // сброс инерции стрелки
   setTurnArrow('player');
 }
 function renderBattleBoards() {
@@ -672,10 +673,38 @@ function updateFleetFills() {
   document.getElementById('my-fill').style.width = (mySunk / TOTAL_SHIPS * 100) + '%';
   document.getElementById('enemy-fill').style.width = (enemySunk / TOTAL_SHIPS * 100) + '%';
 }
+let turnAngle = 0, turnSide = null, turnLastFlip = 0;
 function setTurnArrow(who) {
   const arrow = document.getElementById('turn-arrow');
+  // классы — для цвета фона/треугольника
   if (who === 'player') { arrow.classList.add('down'); arrow.classList.remove('up'); }
   else { arrow.classList.add('up'); arrow.classList.remove('down'); }
+
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  if (turnSide === null) {
+    turnAngle = (who === 'enemy') ? 180 : 0;     // первая установка — без вращения
+  } else if (who !== turnSide) {
+    turnAngle += 180;                            // всегда крутим вперёд
+  }
+  const changed = (turnSide !== null && who !== turnSide);
+  turnSide = who;
+
+  const dt = now - turnLastFlip; turnLastFlip = now;
+  // насколько «быстро» переключают: 0 (медленно) .. 1 (очень быстро)
+  const fast = changed ? Math.max(0, Math.min(1, (620 - dt) / 620)) : 0;
+  const overshoot = 22 * fast;                   // занос 0..22°
+  const p1 = 0.5 - 0.3 * fast;                   // фаза разгона: медленно 0.5с → быстро 0.2с
+
+  arrow.style.transition = 'transform ' + p1.toFixed(3) + 's cubic-bezier(.3,.75,.32,1), background 0.6s ease';
+  arrow.style.transform = 'rotate(' + (turnAngle + overshoot) + 'deg)';
+  clearTimeout(arrow._settle);
+  if (overshoot > 0.5) {
+    // возврат с заносом обратно к цели
+    arrow._settle = setTimeout(() => {
+      arrow.style.transition = 'transform ' + (0.34 + 0.16 * fast).toFixed(3) + 's cubic-bezier(.25,.9,.35,1), background 0.6s ease';
+      arrow.style.transform = 'rotate(' + turnAngle + 'deg)';
+    }, p1 * 1000);
+  }
 }
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1509,18 +1538,22 @@ function showXpResult(win, count, kind, extra) {
     }
   };
 
-  // фазы начисления — бар двигается синхронно
-  const penaltyPhase = (next) => {                  // штраф −100 (поражение)
-    if (base >= 0) { next(); return; }
-    const pstep = () => {
-      if (running <= base) { next(); return; }
-      running -= Math.min(20, running - base);
+  // поражение: одно плавное движение к НЕТТО-итогу (штраф уже с учётом комбо — без «плюс/минус»)
+  const lossPhase = (next) => {
+    if (fruitIcon) fruitIcon.style.display = 'none';
+    tallyN.textContent = '';
+    const dir = gained >= 0 ? 10 : -10;
+    const lstep = () => {
+      const done = dir > 0 ? running >= gained : running <= gained;
+      if (done) { running = gained; gainLabel(); liveBar(); next(); return; }
+      running += dir;
+      if ((dir > 0 && running > gained) || (dir < 0 && running < gained)) running = gained;
       gainLabel(); liveBar(); haptic();
-      setTimeout(pstep, 120);
+      setTimeout(lstep, 110);
     };
-    pstep();
+    lstep();
   };
-  const blockPhase = (next) => {                    // блоки/фрукты
+  const blockPhase = (next) => {                    // блоки/фрукты (победа)
     if (count <= 0) { next(); return; }
     let left = count;
     const bstep = () => {
@@ -1547,7 +1580,10 @@ function showXpResult(win, count, kind, extra) {
 
   setTimeout(() => overlay.classList.add('settled'), 1200);
   setTimeout(() => { ovxp.classList.add('show'); gainEl.classList.add('show'); }, 1650);
-  setTimeout(() => { penaltyPhase(() => blockPhase(() => comboPhase(() => finishBar()))); }, 2150);
+  setTimeout(() => {
+    if (base < 0) lossPhase(() => finishBar());                 // поражение — единый итог
+    else blockPhase(() => comboPhase(() => finishBar()));       // победа — блоки, затем комбо
+  }, 2150);
 }
 
 renderProfile();
