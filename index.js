@@ -101,12 +101,19 @@ function playMenuLogo() {
 (function () {
   var loader = document.getElementById('loader');
   if (!loader) return;
-  setTimeout(function () {
+  var hidden = false;
+  function hideLoader() {
+    if (hidden) return; hidden = true;
     loader.classList.add('done');
-    playMenuLogo();
-    setTimeout(function () { loader.style.display = 'none'; }, 560);
-    setTimeout(ensureMenuLogoVisible, 1400);   // страховка ПОСЛЕ проигрыша анимации
-  }, 1500);
+    loader.style.transition = 'opacity 0.45s ease';
+    loader.style.opacity = '0';
+    loader.style.pointerEvents = 'none';
+    setTimeout(function () { loader.style.display = 'none'; }, 480);   // гарантированно
+    try { playMenuLogo(); } catch (e) {}
+    setTimeout(function () { try { ensureMenuLogoVisible(); } catch (e) {} }, 1300);
+  }
+  setTimeout(hideLoader, 1200);
+  window.addEventListener('load', function () { setTimeout(hideLoader, 1200); });
 })();
 
 const MODES = {
@@ -828,8 +835,11 @@ function onEnemyCellClick(r, c) {
     state.combo = (state.combo || 0) + 1;
     state.missStreak = 0;
     if (state.combo >= 2) {
-      // комбо-опыт по геометрии: x2=10, x3=20, x4=40, ...
-      state.comboXP = (state.comboXP || 0) + 10 * Math.pow(2, state.combo - 2);
+      // комбо-опыт: быстрая игра — геометрия (x2=10,x3=20,…); классика — мягко и с потолком
+      const cg = (lastMode === 'classic')
+        ? Math.min(30, 5 * (state.combo - 1))           // x2=5, x3=10, … потолок 30
+        : 10 * Math.pow(2, state.combo - 2);
+      state.comboXP = (state.comboXP || 0) + cg;
       showCombo(state.combo);
     }
     if (ship.hits >= ship.len) {
@@ -1561,43 +1571,45 @@ function showXpResult(win, count, kind, extra) {
   };
 
   // поражение: одно плавное движение к НЕТТО-итогу (штраф уже с учётом комбо — без «плюс/минус»)
-  const lossPhase = (next) => {
+  // прогрессивный налив к цели: чем больше опыта — тем крупнее шаг и короче задержка
+  const ramp = (target, onDone) => {
+    const total = Math.abs(target - running);
+    if (total < 0.5) { running = target; gainLabel(); liveBar(); onDone(); return; }
+    const steps = Math.max(4, Math.min(40, Math.round(total / 10)));
+    const inc = (target - running) / steps;
+    const delay = Math.max(16, Math.min(130, Math.round(640 / steps)));
+    let i = 0;
+    const tick = () => {
+      i++;
+      running = (i >= steps) ? target : running + inc;
+      gainLabel(); liveBar(); haptic();
+      if (i >= steps) { onDone(); return; }
+      setTimeout(tick, delay);
+    };
+    tick();
+  };
+  const lossPhase = (next) => {                     // поражение: один спуск к нетто (прогрессивно)
     if (fruitIcon) fruitIcon.style.display = 'none';
     tallyN.textContent = '';
-    const dir = gained >= 0 ? 10 : -10;
-    const lstep = () => {
-      const done = dir > 0 ? running >= gained : running <= gained;
-      if (done) { running = gained; gainLabel(); liveBar(); next(); return; }
-      running += dir;
-      if ((dir > 0 && running > gained) || (dir < 0 && running < gained)) running = gained;
-      gainLabel(); liveBar(); haptic();
-      setTimeout(lstep, 110);
-    };
-    lstep();
+    ramp(gained, next);
   };
-  const blockPhase = (next) => {                    // блоки/фрукты (победа)
+  const blockPhase = (next) => {                    // блоки/фрукты (победа) — прогрессивная задержка
     if (count <= 0) { next(); return; }
     let left = count;
+    const bdelay = Math.max(35, Math.min(150, Math.round(720 / count)));
     const bstep = () => {
       if (left <= 0) { next(); return; }
       left--; running += 10; tallyN.textContent = left;
       gainLabel(); liveBar(); haptic();
-      setTimeout(bstep, 150);
+      setTimeout(bstep, bdelay);
     };
     bstep();
   };
-  const comboPhase = (next) => {                    // опыт за комбо
+  const comboPhase = (next) => {                    // опыт за комбо (прогрессивно)
     if (extra <= 0) { next(); return; }
     if (fruitIcon) fruitIcon.style.display = 'none';
     tallyN.textContent = 'Комбо'; tallyN.style.color = '#ffd24a';
-    let cLeft = extra;
-    const cstep = () => {
-      if (cLeft <= 0) { next(); return; }
-      const d = Math.min(10, cLeft); cLeft -= d; running += d;
-      gainLabel(); liveBar(); haptic();
-      setTimeout(cstep, 120);
-    };
-    setTimeout(cstep, 400);
+    setTimeout(() => ramp(running + extra, next), 400);
   };
 
   setTimeout(() => overlay.classList.add('settled'), 1200);
@@ -1669,7 +1681,8 @@ function snakeMakeSide(refs, who) {
     svg: refs.svg, gFruit: refs.gFruit, gBody: refs.gBody, gMarks: refs.gMarks,
     dim: refs.dim, num: refs.num,
     cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
-    fruit: null, lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0
+    fruit: null, lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0,
+    comboN: 0, comboXP: 0, lastEat: 0, _eaten: null
   };
 }
 
@@ -1692,11 +1705,18 @@ function snakeSpawnFruit(side) {
   side.fruit = free.length ? free[Math.floor(Math.random() * free.length)] : null;
 }
 
-function snakePaint(side) {
+function snakeDrawFruit(side, burst) {
   side.gFruit.innerHTML = '';
+  if (burst) {
+    side.gFruit.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.3 }));
+  }
+  if (side.fruit) {
+    side.gFruit.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: side.fruit.c + 0.5, cy: side.fruit.r + 0.5, r: 0.3 }));
+  }
+}
+
+function snakePaint(side) {
   side.gBody.innerHTML = '';
-  if (side.fruit)
-    side.gFruit.appendChild(svgEl('circle', { class: 'snk-fruit-dot', cx: side.fruit.c + 0.5, cy: side.fruit.r + 0.5, r: 0.3 }));
   const edges = [], fills = [];
   // мостики
   for (let i = 0; i < side.cells.length - 1; i++) {
@@ -1755,7 +1775,7 @@ function snakeAdvance(side, dir) {
   const body = willEat ? side.cells : side.cells.slice(0, side.cells.length - 1);
   for (const p of body) if (p.r === nr && p.c === nc) return 'crash';
   side.cells.unshift({ r: nr, c: nc });
-  if (willEat) { snakeSpawnFruit(side); return 'eat'; }
+  if (willEat) { side._eaten = { r: nr, c: nc }; snakeSpawnFruit(side); return 'eat'; }
   side.cells.pop();
   return 'ok';
 }
@@ -1840,6 +1860,7 @@ function snakeDeath(side) {
       side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
       snakeSpawnFruit(side);
       snakePaint(side);
+      snakeDrawFruit(side);
       side.state = 'alive';
     });
   }, 480);
@@ -1852,8 +1873,38 @@ function snakeCheckOver() {
     snakeState.ended = true;
     snakeStop();
     const playerWon = me.state !== 'dead' && ai.state === 'dead';
-    setTimeout(() => snakeEnd(playerWon, me.fruitsEaten), 850);
+    setTimeout(() => snakeEnd(playerWon, me.fruitsEaten, me.comboXP), 850);
   }
+}
+
+let snakeComboTimer = null;
+function showSnakeCombo(n) {
+  const t = document.getElementById('snake-combo'); if (!t) return;
+  t.textContent = 'Комбо x' + n;
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+}
+function hideSnakeCombo() {
+  const t = document.getElementById('snake-combo'); if (!t) return;
+  t.classList.remove('show'); t.style.opacity = '0'; t.textContent = '';
+}
+function snakeComboReset() {
+  clearTimeout(snakeComboTimer);
+  if (snakeState) snakeState.me.comboN = 0;
+  hideSnakeCombo();
+}
+// игрок съел фрукт: комбо, если успел в 3с после предыдущего
+function snakeOnEat(side) {
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  if (side.comboN >= 1 && (now - side.lastEat) <= 3000) side.comboN++;
+  else side.comboN = 1;
+  side.lastEat = now;
+  if (side.comboN >= 2) {
+    side.comboXP += Math.min(40, 10 * (side.comboN - 1));   // x2=10, x3=20, … потолок 40
+    showSnakeCombo(side.comboN);
+  }
+  clearTimeout(snakeComboTimer);
+  snakeComboTimer = setTimeout(() => { side.comboN = 0; hideSnakeCombo(); }, 3000);
 }
 
 function snakeTick() {
@@ -1863,14 +1914,18 @@ function snakeTick() {
     side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
     const res = snakeAdvance(side, side.dir);
     if (res === 'crash') { snakeDeath(side); return; }
-    if (res === 'eat' && side.who === 'me') side.fruitsEaten++;
+    if (res === 'eat') {
+      if (side.who === 'me') { side.fruitsEaten++; snakeOnEat(side); }
+      snakeDrawFruit(side, side._eaten);     // бёрст на месте съедения + новый фрукт с появлением
+    }
     snakePaint(side);
   });
 }
 
-function snakeEnd(win, fruits) {
+function snakeEnd(win, fruits, comboXP) {
+  snakeComboReset();
   document.getElementById('snake-screen').classList.add('hidden');
-  setTimeout(() => { showXpResult(win, fruits, 'snake'); launchConfetti(win); }, 90);
+  setTimeout(() => { showXpResult(win, fruits, 'snake', Math.round(comboXP || 0)); launchConfetti(win); }, 90);
 }
 
 function snakeStop() {
@@ -1887,10 +1942,12 @@ function startSnake() {
   const me = snakeMakeSide(meRefs, 'me');
   const ai = snakeMakeSide(aiRefs, 'ai');
   snakeState = { running: false, ended: false, interval: null, me, ai };
+  snakeComboReset();
   [me, ai].forEach(side => {
     side.cells = snakeStartCells(3);
     snakeSpawnFruit(side);
     snakePaint(side);
+    snakeDrawFruit(side);
   });
   snakeRenderLives();
   document.getElementById('snake-screen').classList.remove('hidden');

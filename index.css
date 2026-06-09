@@ -143,14 +143,14 @@
   #loader-particles { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
   #loader-stage { position: relative; width: 150px; height: 96px; z-index: 1; }
   .load-piece {
-    position: absolute; border-radius: 6px; opacity: 0;
+    position: absolute; border-radius: 6px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.28);
-    animation: lp-assemble 0.85s cubic-bezier(.2,.8,.3,1.05) both;
+    animation: lp-assemble 0.8s cubic-bezier(.2,.8,.3,1.05) both;
   }
+  /* БЕЗ opacity — кусочки видны всегда, просто прилетают со смещением */
   @keyframes lp-assemble {
-    0%   { opacity: 0; transform: var(--from); }
-    55%  { opacity: 1; }
-    100% { opacity: 1; transform: translate(0,0) rotate(0deg) scale(1); }
+    0%   { transform: var(--from); }
+    100% { transform: translate(0,0) rotate(0deg) scale(1); }
   }
   .lp1 { left: 40px; top: 6px;  width: 70px; height: 18px; background: var(--grad-2); --from: translate(60px,-90px) rotate(220deg) scale(.4); animation-delay: 0.05s; }
   .lp2 { left: 40px; top: 72px; width: 70px; height: 18px; background: var(--grad-1); --from: translate(-70px,95px) rotate(-200deg) scale(.4); animation-delay: 0.16s; }
@@ -160,23 +160,18 @@
   .load-cross {
     position: absolute; left: 50%; top: 50%; color: var(--miss); z-index: 2; line-height: 0;
     transform: translate(-50%,-50%);
-    animation: lc-pop 0.6s cubic-bezier(.34,1.5,.5,1) 0.55s both;
+    animation: lc-pop 0.55s cubic-bezier(.34,1.5,.5,1) 0.5s both;
   }
   @keyframes lc-pop {
-    0%   { opacity: 0; transform: translate(-50%,-50%) rotate(-180deg) scale(0.2); }
-    100% { opacity: 1; transform: translate(-50%,-50%) rotate(0deg) scale(1); }
+    0%   { transform: translate(-50%,-50%) rotate(-180deg) scale(0.15); }
+    100% { transform: translate(-50%,-50%) rotate(0deg) scale(1); }
   }
   #loader-word {
     font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: 3px; z-index: 1;
-    background: linear-gradient(180deg,
-      color-mix(in srgb, var(--ink, #eceaf6), #ffffff 16%),
-      var(--ink, #eceaf6),
-      color-mix(in srgb, var(--ink, #eceaf6), #9a90d6 22%));
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
-    opacity: 0; animation: lw-in 0.5s ease 0.85s both;
+    color: var(--ink, #eceaf6);
+    animation: lw-in 0.5s ease 0.7s both;
   }
-  @keyframes lw-in { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+  @keyframes lw-in { 0% { transform: translateY(10px) scale(0.92); } 100% { transform: translateY(0) scale(1); } }
 
   #header {
     position: relative; z-index: 2;
@@ -191,11 +186,10 @@
   #title .logo-cross { width: 24px; height: 24px; }
   #title .logo-cube { transform: rotate(8deg); }
   #app-version {
-    align-self: flex-end;
-    margin-left: 9px; margin-bottom: 3px;
+    position: fixed; top: 8px; right: 12px; z-index: 50;
     font-family: 'Nunito', sans-serif; font-weight: 700;
     font-size: 10px; letter-spacing: 0.5px;
-    color: var(--ink-soft); opacity: 0.55;
+    color: var(--ink-soft); opacity: 0.5; pointer-events: none;
   }
   .logo-text {
     font-family: 'Fredoka', sans-serif;
@@ -204,8 +198,8 @@
     animation: logo-reveal 0.7s ease-out 0.45s both;
   }
   @keyframes logo-reveal {
-    0%   { opacity: 0; transform: translateX(8px); }
-    100% { opacity: 1; transform: translateX(0); }
+    0%   { transform: translateX(8px); }
+    100% { transform: translateX(0); }
   }
   .logo-cube {
     width: 15px; height: 15px; border-radius: 4px;
@@ -217,9 +211,9 @@
   .logo-cross { display: block; color: var(--miss); flex-shrink: 0; margin-right: 1px;
     animation: cross-spin 0.7s cubic-bezier(.34,1.3,.64,1) 0.2s both; }
   @keyframes cross-spin {
-    0%   { opacity: 0; transform: rotate(-160deg) scale(0.4); }
-    70%  { opacity: 1; transform: rotate(20deg) scale(1.1); }
-    100% { opacity: 1; transform: rotate(0deg) scale(1); }
+    0%   { transform: rotate(-160deg) scale(0.4); }
+    70%  { transform: rotate(20deg) scale(1.1); }
+    100% { transform: rotate(0deg) scale(1); }
   }
   #overlay h1 .logo-cross { color: var(--miss); margin-right: 4px;
     animation: cross-spin 0.8s cubic-bezier(.34,1.3,.64,1) 0.3s both; }
@@ -228,9 +222,8 @@
     animation: cube-run 0.6s cubic-bezier(.4,0,.2,1) both;
   }
   @keyframes cube-run {
-    0%   { transform: translateX(-180px) rotate(-90deg) scaleX(0.93); opacity: 0; }
-    60%  { opacity: 1; }
-    100% { transform: translateX(0) rotate(8deg) scaleX(0.93); opacity: 1; }
+    0%   { transform: translateX(-180px) rotate(-90deg) scaleX(0.93); }
+    100% { transform: translateX(0) rotate(8deg) scaleX(0.93); }
   }
 
   .screen { display: none; flex-direction: column; flex: 1; position: relative; z-index: 2; }
@@ -588,23 +581,22 @@
   #menu-logo .logo-cross { color: var(--miss); flex-shrink: 0;
     animation: menu-cross-in 0.8s cubic-bezier(.34,1.3,.64,1) 0.3s both; }
   #menu-logo .logo-text { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 40px; letter-spacing: 2.5px;
-    /* лёгкий малозаметный градиент внутри букв */
-    background: linear-gradient(180deg,
-      color-mix(in srgb, var(--ink), #ffffff 16%) 0%,
-      var(--ink) 48%,
-      color-mix(in srgb, var(--ink), #9a90d6 20%) 100%);
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
-    animation: menu-text-in 0.7s ease-out 0.45s both; }
-  @keyframes menu-text-in { 0% { opacity: 0; transform: translateX(8px); } 100% { opacity: 1; transform: translateX(0); } }
+    color: var(--ink);
+    animation: menu-text-in 0.7s ease-out 0.3s both; }
+  /* БЕЗ opacity — текст и крест видны всегда (на этом webview opacity-анимации застревали) */
+  @keyframes menu-text-in { 0% { transform: translateX(8px); } 100% { transform: translateX(0); } }
   @keyframes menu-cross-in {
-    0%   { opacity: 0; transform: rotate(-160deg) scale(0.4); }
-    70%  { opacity: 1; transform: rotate(20deg) scale(1.1); }
-    100% { opacity: 1; transform: rotate(0deg) scale(1); }
+    0%   { transform: rotate(-160deg) scale(0.4); }
+    70%  { transform: rotate(20deg) scale(1.1); }
+    100% { transform: rotate(0deg) scale(1); }
   }
   #menu-logo .logo-cube { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
     background: var(--grad-3); box-shadow: 0 1px 8px rgba(255,93,115,0.6);
-    animation: cube-run-big 0.7s cubic-bezier(.4,0,.2,1) both; }
+    animation: menu-cube-in 0.65s cubic-bezier(.3,1.2,.5,1) 0.15s both; }
+  @keyframes menu-cube-in {
+    0%   { transform: translateX(120px) rotate(45deg) scale(0.5); }
+    100% { transform: translateX(0) rotate(0deg) scale(1); }
+  }
   #menu-tagline {
     margin-top: 14px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
     color: var(--ink-soft); font-weight: 700;
@@ -856,7 +848,7 @@
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 6px;
-    padding: 2px 14px 46px; overflow: hidden; touch-action: none;
+    padding: 2px 14px 66px; overflow: hidden; touch-action: none;
     --big-w: min(94vw, 392px);
     --mini-w: min(46vw, 178px);
   }
@@ -887,7 +879,37 @@
   .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
   .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.2; stroke-linejoin: round; stroke-linecap: round; }
   .snk-edge.snk-tail-e { stroke: var(--sc-edge, #2a8f8a); stroke-width: 0.22; stroke-linejoin: round; stroke-linecap: round; }
-  .snk-fruit-dot { fill: var(--hit); }
+  .snk-fruit-dot { fill: var(--hit); transform-box: fill-box; transform-origin: center;
+    filter: drop-shadow(0 0 0.06px rgba(255,93,115,0.5)); }
+  .snk-fruit-dot.appear { animation: snk-pop 0.42s cubic-bezier(.3,1.6,.5,1) both; }
+  @keyframes snk-pop {
+    0%   { transform: scale(0.1); opacity: 0; }
+    60%  { transform: scale(1.28); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .snk-fruit-eat { fill: var(--hit); transform-box: fill-box; transform-origin: center; pointer-events: none;
+    animation: snk-eat 0.45s ease-out both; }
+  @keyframes snk-eat {
+    0%   { transform: scale(1); opacity: 0.85; }
+    100% { transform: scale(2.7); opacity: 0; }
+  }
+  /* плашка комбо в змейке (тускнеет за 3с) */
+  #snake-combo {
+    position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+    z-index: 4; pointer-events: none; opacity: 0;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.5px;
+    padding: 4px 13px; border-radius: 999px; white-space: nowrap;
+    color: #fff; background: linear-gradient(140deg, rgba(255,178,60,0.28), rgba(255,140,60,0.18));
+    box-shadow: 0 0 0 1.5px rgba(255,178,60,0.4), 0 4px 14px rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+  }
+  #snake-combo.show { animation: snk-combo-dim 3s linear forwards; }
+  @keyframes snk-combo-dim {
+    0%   { opacity: 1; transform: translateX(-50%) scale(1.12); }
+    12%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0.18; transform: translateX(-50%) scale(0.96); }
+  }
+
   /* маркеры финальной смерти: белая точка → дырка цвета поля */
   .snk-mark { fill: #ffffff; transform-box: fill-box; transform-origin: center;
     animation: snk-mark 0.8s cubic-bezier(.4,0,.2,1) both; }
