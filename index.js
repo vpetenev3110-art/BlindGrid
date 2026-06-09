@@ -1455,11 +1455,12 @@ function showXpResult(win, count, kind, extra) {
   document.getElementById('ov-cat-burst').classList.remove('go');
   document.getElementById('ov-frame').classList.remove('flash');
   document.getElementById('overlay-btn').textContent = 'Ещё раз';
-  if (fruitIcon) { fruitIcon.classList.remove('combo'); fruitIcon.classList.toggle('block', kind === 'sea'); }
+  if (fruitIcon) { fruitIcon.classList.remove('combo'); fruitIcon.classList.toggle('block', kind === 'sea'); fruitIcon.style.display = (count > 0 ? '' : 'none'); }
   setRankVisuals(rankInfo(before), true);
   setAvatar(document.getElementById('ov-ava'));
   document.getElementById('ov-xp-ghost').style.opacity = '0';
-  tallyN.textContent = count;
+  tallyN.style.color = '';
+  tallyN.textContent = count > 0 ? count : '';
   let running = base;
   gainEl.classList.remove('show', 'minus');
   gainEl.textContent = ovGainText(running);
@@ -1474,28 +1475,29 @@ function showXpResult(win, count, kind, extra) {
       setTimeout(() => overlay.classList.add('act-show'), 250);
     }), 300);
   };
-  // этап 2: опыт за комбо (отдельно, после блоков)
+  // этап 2: опыт за комбо — просто жёлтая надпись «Комбо», очки идут в счётчик
   const comboPhase = () => {
     if (extra <= 0) { toBar(); return; }
-    if (fruitIcon) { fruitIcon.classList.remove('block'); fruitIcon.classList.add('combo'); }
+    if (fruitIcon) fruitIcon.style.display = 'none';
+    tallyN.textContent = 'Комбо';
+    tallyN.style.color = '#ffd24a';
     let cLeft = extra;
-    tallyN.textContent = cLeft;
     const cstep = () => {
       if (cLeft <= 0) { toBar(); return; }
       const d = Math.min(10, cLeft); cLeft -= d; running += d;
-      tallyN.textContent = cLeft;
       gainEl.textContent = ovGainText(running);
       gainEl.classList.toggle('minus', running < 0);
       haptic();
-      setTimeout(cstep, 130);
+      setTimeout(cstep, 120);
     };
-    setTimeout(cstep, 420);
+    setTimeout(cstep, 450);
   };
 
   setTimeout(() => overlay.classList.add('settled'), 1200);
   setTimeout(() => { ovxp.classList.add('show'); gainEl.classList.add('show'); }, 1650);
-  // этап 1: блоки/фрукты
+  // этап 1: блоки/фрукты (в поражении блоков нет — сразу к комбо/бару)
   setTimeout(() => {
+    if (count <= 0) { comboPhase(); return; }
     let left = count;
     const step = () => {
       if (left <= 0) { comboPhase(); return; }
@@ -1638,8 +1640,8 @@ function snakePaint(side) {
         else pts = [[x + w / 2, y], [x, y + w], [x + w, y + w]];
         return pts.map(q => q.join(',')).join(' ');
       };
-      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: tri(p.c + 0.06, p.r + 0.06, 0.88) }));
-      fills.push(svgEl('polygon', { class: 'snk-tail', points: tri(p.c + 0.16, p.r + 0.16, 0.68) }));
+      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: tri(p.c + 0.18, p.r + 0.18, 0.64) }));
+      fills.push(svgEl('polygon', { class: 'snk-tail', points: tri(p.c + 0.27, p.r + 0.27, 0.46) }));
     } else {
       edges.push(svgEl('rect', { class: 'snk-edge', x: p.c + 0.03, y: p.r + 0.03, width: 0.94, height: 0.94, rx: 0.27 }));
       fills.push(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));

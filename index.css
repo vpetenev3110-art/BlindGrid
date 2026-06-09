@@ -804,7 +804,7 @@
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 6px;
-    padding: 2px 14px 14px; overflow: hidden; touch-action: none;
+    padding: 2px 14px 46px; overflow: hidden; touch-action: none;
     --big-w: min(94vw, 392px);
     --mini-w: min(46vw, 178px);
   }
@@ -833,8 +833,8 @@
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
   /* контур (как у фигур морского боя) — отдельный слой-силуэт под телом */
   .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
-  .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.14; stroke-linejoin: round; stroke-linecap: round; }
-  .snk-edge.snk-tail-e { stroke: var(--sc-edge, #2a8f8a); stroke-width: 0.16; stroke-linejoin: round; stroke-linecap: round; }
+  .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.2; stroke-linejoin: round; stroke-linecap: round; }
+  .snk-edge.snk-tail-e { stroke: var(--sc-edge, #2a8f8a); stroke-width: 0.22; stroke-linejoin: round; stroke-linecap: round; }
   .snk-fruit-dot { fill: var(--hit); }
   /* маркеры финальной смерти: белая точка → дырка цвета поля */
   .snk-mark { fill: #ffffff; transform-box: fill-box; transform-origin: center;
