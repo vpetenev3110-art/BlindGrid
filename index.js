@@ -17,6 +17,17 @@ window.addEventListener('unhandledrejection', function (e) {
   if (e && typeof e.preventDefault === 'function') e.preventDefault();
 });
 
+// Гасим жест «свайп вниз = закрыть приложение» Telegram: не даём странице утаскивать жест.
+// Прокручиваемые зоны (#custom-center) исключаем.
+document.addEventListener('touchmove', function (e) {
+  let el = e.target;
+  while (el && el !== document.body) {
+    if (el.id === 'custom-center' || (el.classList && el.classList.contains('scrollable'))) return;
+    el = el.parentElement;
+  }
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
+
 // частицы — в форме фигур из морского боя (блоки 1-3 клетки), мягкие, размытые
 // единый набор частиц: считаем позиции один раз и рисуем идентично во всех слоях
 const PARTICLE_GRADS = [
@@ -108,24 +119,27 @@ function freshBoard() {
   return b;
 }
 function placeFleetAuto() {
-  const board = freshBoard(); const ships = []; let id = 0;
-  for (const len of FLEET_LIST) {
-    let placed = false, attempts = 0;
-    while (!placed && attempts < 800) {
-      attempts++;
-      const horiz = Math.random() < 0.5;
-      const maxR = horiz ? SIZE : SIZE - len, maxC = horiz ? SIZE - len : SIZE;
-      const r0 = Math.floor(Math.random() * maxR), c0 = Math.floor(Math.random() * maxC);
-      const cells = [];
-      for (let i = 0; i < len; i++) cells.push({ r: horiz ? r0 : r0 + i, c: horiz ? c0 + i : c0 });
-      if (cellsFreeStrict(board, cells)) {
-        cells.forEach(({ r, c }) => board[r][c].shipId = id);
-        ships.push({ id, len, cells, hits: 0, sunk: false }); id++; placed = true;
+  for (let full = 0; full < 300; full++) {
+    const board = freshBoard(); const ships = []; let id = 0; let okAll = true;
+    for (const len of FLEET_LIST) {
+      let placed = false, attempts = 0;
+      while (!placed && attempts < 800) {
+        attempts++;
+        const horiz = Math.random() < 0.5;
+        const maxR = horiz ? SIZE : SIZE - len, maxC = horiz ? SIZE - len : SIZE;
+        const r0 = Math.floor(Math.random() * maxR), c0 = Math.floor(Math.random() * maxC);
+        const cells = [];
+        for (let i = 0; i < len; i++) cells.push({ r: horiz ? r0 : r0 + i, c: horiz ? c0 + i : c0 });
+        if (cellsFreeStrict(board, cells)) {
+          cells.forEach(({ r, c }) => board[r][c].shipId = id);
+          ships.push({ id, len, cells, hits: 0, sunk: false }); id++; placed = true;
+        }
       }
+      if (!placed) { okAll = false; break; }
     }
-    if (!placed) return placeFleetAuto();
+    if (okAll) return { board, ships };
   }
-  return { board, ships };
+  return { board: freshBoard(), ships: [] };
 }
 function cellsFreeStrict(board, cells, ignoreId = null) {
   for (const { r, c } of cells) {
@@ -550,22 +564,29 @@ function renderPlaceControls() {
   const ctrl = document.getElementById('controls');
   ctrl.classList.remove('hidden'); ctrl.innerHTML = '';
   const randBtn = document.createElement('button');
+  randBtn.type = 'button';
   randBtn.className = 'icon-btn'; randBtn.title = 'Случайно';
   randBtn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M4 8 H17"/><path d="M14 5 L17 8 L14 11"/><path d="M20 16 H7"/><path d="M10 13 L7 16 L10 19"/></svg>`;
-  randBtn.addEventListener('click', () => {
-    const auto = placeFleetAuto();
-    placement.board = auto.board;
-    placement.pieces = auto.ships.map(s => ({
-      id: s.id, len: s.len,
-      horiz: s.cells.length < 2 ? true : (s.cells[0].r === s.cells[1].r),
-      placed: true, cells: s.cells, bad: false
-    }));
-    placement.animateId = undefined;
-    renderPlaceBoard(); renderDock(); updatePlaceFill();
+  randBtn.addEventListener('click', (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!placement) return;
+    try {
+      const auto = placeFleetAuto();
+      if (!auto.ships.length) return;
+      placement.board = auto.board;
+      placement.pieces = auto.ships.map(s => ({
+        id: s.id, len: s.len,
+        horiz: s.cells.length < 2 ? true : (s.cells[0].r === s.cells[1].r),
+        placed: true, cells: s.cells, bad: false
+      }));
+      placement.animateId = undefined; placement.animType = undefined;
+      renderPlaceBoard(); renderDock(); updatePlaceFill();
+    } catch (err) { try { console.error('[BLINDGRID] rand:', err); } catch (_) {} }
   });
   ctrl.appendChild(randBtn);
   const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
   resetBtn.className = 'icon-btn'; resetBtn.title = 'Сброс';
   resetBtn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 4 V19"/><path d="M6 13 L12 19 L18 13"/></svg>`;
