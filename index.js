@@ -1211,6 +1211,7 @@ document.getElementById('menu-play').addEventListener('click', () => {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('menu').classList.add('hidden');
+  renderProfile();
   document.getElementById('gametype-select').classList.remove('hidden');
 });
 document.getElementById('gametype-back-x').addEventListener('click', () => {
@@ -1389,6 +1390,28 @@ function setAvatar(el) {
 }
 
 // окна профиля (экраны выбора соперника и режима)
+function renderLadder() {
+  const cur = rankInfo(getXP()).index;
+  let acc = 0;
+  const rows = RANKS.map((r, i) => {
+    const name = r.tier ? (r.catName + ' ' + ROMAN[r.tier]) : r.catName;
+    const cls = i < cur ? 'past' : (i === cur ? 'current' : 'future');
+    const need = i === 0 ? 'старт' : (r.need === Infinity && acc === 0 ? '∞' : acc.toLocaleString('ru-RU') + ' XP');
+    if (r.need !== Infinity) acc += r.need;
+    return '<div class="pf-rung ' + cls + '">'
+      + '<span class="pf-rung-badge" style="background:linear-gradient(135deg,' + r.c1 + ',' + r.c2 + ')"></span>'
+      + '<span class="pf-rung-name">' + name + '</span>'
+      + '<span class="pf-rung-need">' + need + '</span></div>';
+  }).join('');
+  document.querySelectorAll('.pf-ladder').forEach(lad => { lad.innerHTML = rows; });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.pf-ladder').forEach(lad => {
+      const c = lad.querySelector('.pf-rung.current');
+      if (c && lad.clientHeight) lad.scrollTop = Math.max(0, c.offsetTop - lad.clientHeight / 2 + c.offsetHeight / 2);
+    });
+  }));
+}
+
 function renderProfile() {
   const ri = rankInfo(getXP());
   document.querySelectorAll('.pf-window').forEach(win => {
@@ -1399,6 +1422,7 @@ function renderProfile() {
     const fill = win.querySelector('.pf-xp-fill');
     if (fill) { fill.style.width = (ri.frac * 100) + '%'; fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')'; }
   });
+  renderLadder();
 }
 
 // ---- оверлей конца раунда ----
@@ -1777,10 +1801,11 @@ function snakePaint(side) {
           fills.push(xg);
         });
       } else {
-        // полоски, чуть под углом (зеркально)
+        // полоски под углом; знак наклона зависит от направления (всегда «фокус вперёд»)
         const ang = 20;
-        fills.push(svgEl('rect', { class: 'snk-eye', x: e1[0], y: e1[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + ang + ' ' + c1[0] + ' ' + c1[1] + ')' }));
-        fills.push(svgEl('rect', { class: 'snk-eye', x: e2[0], y: e2[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + (-ang) + ' ' + c2[0] + ' ' + c2[1] + ')' }));
+        const a1 = (d.c === 1 || d.r === 1) ? ang : -ang;
+        fills.push(svgEl('rect', { class: 'snk-eye', x: e1[0], y: e1[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + a1 + ' ' + c1[0] + ' ' + c1[1] + ')' }));
+        fills.push(svgEl('rect', { class: 'snk-eye', x: e2[0], y: e2[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + (-a1) + ' ' + c2[0] + ' ' + c2[1] + ')' }));
       }
     } else if (idx === last) {
       const prev = side.cells[idx - 1];

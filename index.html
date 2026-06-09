@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=34">
+<link rel="stylesheet" href="index.css?v=35">
 <style>
   /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
      поэтому меню не успевает мелькнуть */
@@ -34,7 +34,7 @@
 </head>
 <body>
 <div id="loader"><div class="loader-spin"></div></div>
-<span id="app-version">v1.2.7.8</span>
+<span id="app-version">v1.2.7.9</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -158,6 +158,17 @@
       <span class="logo-text">BLINDGRID</span>
       <span class="logo-cube"></span>
     </div>
+    <div class="pf-window">
+      <div class="pf-head">
+        <div class="pf-info">
+          <span class="pf-name">Игрок</span>
+          <span class="pf-rank">Бронза I</span>
+          <div class="pf-xp"><span class="pf-xp-fill"></span></div>
+        </div>
+        <div class="pf-frame"><div class="pf-avatar"></div></div>
+      </div>
+      <div class="pf-ladder"></div>
+    </div>
     <div id="gametype-center">
       <div id="gametype-buttons">
         <button class="btn menu-btn menu-btn-secondary" id="gt-sea">
@@ -180,12 +191,15 @@
       <span class="logo-cube"></span>
     </div>
     <div class="pf-window">
-      <div class="pf-info">
-        <span class="pf-name">Игрок</span>
-        <span class="pf-rank">Бронза I</span>
-        <div class="pf-xp"><span class="pf-xp-fill"></span></div>
+      <div class="pf-head">
+        <div class="pf-info">
+          <span class="pf-name">Игрок</span>
+          <span class="pf-rank">Бронза I</span>
+          <div class="pf-xp"><span class="pf-xp-fill"></span></div>
+        </div>
+        <div class="pf-frame"><div class="pf-avatar"></div></div>
       </div>
-      <div class="pf-frame"><div class="pf-avatar"></div></div>
+      <div class="pf-ladder"></div>
     </div>
     <div id="opp-center">
       <div id="opp-buttons">
@@ -209,12 +223,15 @@
       <span class="logo-cube"></span>
     </div>
     <div class="pf-window">
-      <div class="pf-info">
-        <span class="pf-name">Игрок</span>
-        <span class="pf-rank">Бронза I</span>
-        <div class="pf-xp"><span class="pf-xp-fill"></span></div>
+      <div class="pf-head">
+        <div class="pf-info">
+          <span class="pf-name">Игрок</span>
+          <span class="pf-rank">Бронза I</span>
+          <div class="pf-xp"><span class="pf-xp-fill"></span></div>
+        </div>
+        <div class="pf-frame"><div class="pf-avatar"></div></div>
       </div>
-      <div class="pf-frame"><div class="pf-avatar"></div></div>
+      <div class="pf-ladder"></div>
     </div>
     <div id="mode-center">
       <h2 id="mode-title">Выбери режим</h2>
@@ -250,11 +267,11 @@
           <div id="snake-combo-tag"></div>
           <div class="snake-grid big" id="snake-me"></div>
         </div>
+        <div id="snake-hunger">
+          <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7.4 V12 L15.4 14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="snake-hunger-n"></span>
+        </div>
       </div>
-    </div>
-    <div id="snake-hunger">
-      <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7.4 V12 L15.4 14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span id="snake-hunger-n"></span>
     </div>
   </div>
 
@@ -276,6 +293,6 @@
   </div>
 </div>
 
-<script src="index.js?v=34"></script>
+<script src="index.js?v=35"></script>
 </body>
 </html>

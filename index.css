@@ -544,6 +544,14 @@
   #menu-logo .logo-text { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 40px; letter-spacing: 2.5px;
     color: var(--ink);
     transition: transform 0.6s ease-out; }
+  /* лёгкий градиент в буквах — безопасно: только если webview поддерживает clip:text, иначе остаётся сплошной цвет */
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    body.theme-dark #menu-logo .logo-text {
+      background-image: linear-gradient(176deg, #ffffff 0%, #ece9f6 52%, #cdc4ef 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  }
   #menu-logo .logo-cube { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
     background: var(--grad-3); box-shadow: 0 1px 8px rgba(255,93,115,0.6);
     transition: transform 0.6s cubic-bezier(.3,1.2,.5,1); }
@@ -798,7 +806,7 @@
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 6px;
-    padding: 2px 8px 46px; overflow: hidden; touch-action: none;
+    padding: 2px 8px 26px; overflow: hidden; touch-action: none;
     --big-w: min(95vw, 404px);
     --mini-w: min(46vw, 180px);
   }
@@ -826,7 +834,7 @@
   .snk-cube, .snk-br, .snk-tail { fill: var(--sc, #4fcac4); transition: fill 0.4s ease; }
   .snk-head { fill: var(--sc-h, #2bb3ac); transition: fill 0.4s ease; }
   .snk-eye { fill: rgba(20,16,32,0.42); }
-  .snk-eye-x line { stroke: rgba(255,255,255,0.72); stroke-width: 0.085; stroke-linecap: round; }
+  .snk-eye-x line { stroke: rgba(20,16,32,0.46); stroke-width: 0.09; stroke-linecap: round; }
   /* контур (как у фигур морского боя) — отдельный слой-силуэт под телом */
   .snk-edge { fill: var(--sc-edge, #2a8f8a); transition: fill 0.4s ease; }
   .snk-tail { stroke: var(--sc, #4fcac4); stroke-width: 0.2; stroke-linejoin: round; stroke-linecap: round; }
@@ -847,16 +855,16 @@
   }
   /* комбо как в морском бою, в левом верхнем углу поля игрока */
   .snake-grid-holder { position: relative; width: 100%; max-width: var(--big-w); margin: 0 auto; flex-shrink: 0; }
-  /* таймер голода — внизу справа под полем */
+  /* таймер голода — под полем игрока, справа (как сердца, только снизу) */
   #snake-hunger {
-    position: absolute; bottom: 12px; right: 16px; z-index: 7;
-    display: flex; align-items: center; gap: 6px;
-    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 17px;
+    width: 100%; max-width: var(--big-w); margin: 4px auto 0; height: 22px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 16px;
     color: var(--ink-soft); pointer-events: none;
-    opacity: 0; transform: translateY(10px) scale(0.85);
-    transition: opacity 0.32s ease, transform 0.32s cubic-bezier(.34,1.4,.5,1), color 0.3s ease;
+    opacity: 0; transform: scale(0.85); transform-origin: right center;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(.34,1.4,.5,1), color 0.3s ease;
   }
-  #snake-hunger.show { opacity: 0.92; transform: translateY(0) scale(1); }
+  #snake-hunger.show { opacity: 0.92; transform: scale(1); }
   #snake-hunger.urgent { color: #ff5d6c; }
   #snake-hunger.urgent svg, #snake-hunger.urgent #snake-hunger-n { animation: hunger-pulse 0.62s ease-in-out infinite; }
   #snake-hunger-n { display: inline-block; min-width: 0.7em; text-align: center; }
@@ -903,16 +911,38 @@
 
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   .pf-window {
-    position: absolute; top: 58px; left: 8px; right: 8px; z-index: 3;
-    display: flex; align-items: center; gap: 13px;
-    padding: 11px 16px; border-radius: 10px;
+    position: absolute; top: 72px; left: 8px; right: 8px; z-index: 3;
+    display: flex; flex-direction: column; gap: 9px;
+    padding: 11px 14px; border-radius: 13px;
     background: var(--panel-bg, rgba(255,255,255,0.5));
     box-shadow: 0 6px 18px -12px rgba(52,48,74,0.45);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   }
   #opp-select:not(.hidden) .pf-window,
+  #gametype-select:not(.hidden) .pf-window,
   #mode-select:not(.hidden) .pf-window { opacity: 1; }
   @keyframes pf-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: translateY(0); } }
+  .pf-head { display: flex; align-items: center; gap: 13px; }
+  .pf-ladder {
+    max-height: 124px; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; gap: 4px;
+    padding-top: 9px; border-top: 1px solid rgba(120,110,160,0.16);
+    -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(120,110,160,0.45) transparent;
+  }
+  .pf-ladder::-webkit-scrollbar { width: 5px; }
+  .pf-ladder::-webkit-scrollbar-track { background: transparent; }
+  .pf-ladder::-webkit-scrollbar-thumb { background: rgba(120,110,160,0.42); border-radius: 999px; }
+  .pf-rung {
+    display: flex; align-items: center; gap: 9px;
+    padding: 5px 8px; border-radius: 8px; flex-shrink: 0;
+    font-family: 'Nunito', sans-serif; transition: opacity 0.2s;
+  }
+  .pf-rung-badge { width: 17px; height: 17px; border-radius: 5px; flex-shrink: 0; box-shadow: 0 1px 4px -1px rgba(0,0,0,0.35); }
+  .pf-rung-name { flex: 1; min-width: 0; font-weight: 800; font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pf-rung-need { font-weight: 700; font-size: 10px; color: var(--ink-soft); flex-shrink: 0; letter-spacing: 0.3px; }
+  .pf-rung.current { background: var(--btn-soft-bg); box-shadow: inset 0 0 0 1.5px rgba(120,110,160,0.22); }
+  .pf-rung.past .pf-rung-name { opacity: 0.66; }
+  .pf-rung.future { opacity: 0.4; }
   .pf-info { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; text-align: left; }
   .pf-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: var(--ink);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
