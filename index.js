@@ -1390,57 +1390,72 @@ function setAvatar(el) {
 }
 
 // окна профиля (экраны выбора соперника и режима)
-function pfSlideHTML(i, cur, name, avaBg, avaTxt) {
-  const r = RANKS[i];
-  const rname = r.tier ? (r.catName + ' ' + ROMAN[r.tier]) : r.catName;
-  const cls = i < cur.index ? 'past' : (i === cur.index ? 'current' : 'future');
-  const frac = (i === cur.index) ? cur.frac : 1;   // соседние ранги — полная полоса, чтобы был виден цвет
-  const bw = r.cat === 'absolute' ? 4.5 : (2 + r.tier * 0.7);
-  const glow = (r.tier === 3 || r.cat === 'absolute') ? 14 : (r.tier === 2 ? 9 : 6);
-  const frameBg = r.cat === 'absolute'
-    ? 'conic-gradient(from 0deg,#ff5d8f,#ffbf4d,#4fcac4,#6c80f5,#ff5d8f)'
-    : 'linear-gradient(135deg,' + r.c1 + ',' + r.c2 + ')';
-  const frameStyle = 'padding:' + bw + 'px;background:' + frameBg
-    + ';box-shadow:0 0 ' + glow + 'px ' + hexA(r.c1, 0.55) + ',0 4px 14px -6px ' + hexA(r.c1, 0.5) + ';';
-  const ava = avaBg
-    ? '<div class="pf-avatar" style="background-image:url(&quot;' + avaBg + '&quot;)"></div>'
-    : '<div class="pf-avatar">' + avaTxt + '</div>';
-  return '<div class="pf-slide ' + cls + '">'
-    + '<div class="pf-info">'
-    + '<span class="pf-name">' + name + '</span>'
-    + '<span class="pf-rank" style="color:' + r.c1 + '">' + rname + '</span>'
-    + '<div class="pf-xp"><span class="pf-xp-fill" style="width:' + (frac * 100) + '%;background:linear-gradient(90deg,' + r.c1 + ',' + r.c2 + ')"></span></div>'
-    + '</div>'
-    + '<div class="pf-frame' + (r.cat === 'absolute' ? ' absolute-frame' : '') + '" style="' + frameStyle + '">' + ava + '</div>'
-    + '</div>';
+let pfIndex = 0;
+function pfRenderCard(card, idx) {
+  const cur = rankInfo(getXP());
+  const r = RANKS[idx];
+  const ri = mkRI(idx, idx === cur.index ? cur.into : 0, r.need);
+  const nameEl = card.querySelector('.pf-name'); if (nameEl) nameEl.textContent = pfDisplayName();
+  setAvatar(card.querySelector('.pf-avatar'));
+  styleFrame(card.querySelector('.pf-frame'), ri);
+  const rk = card.querySelector('.pf-rank'); if (rk) { rk.textContent = ri.name; rk.style.color = ri.c1; }
+  const fill = card.querySelector('.pf-xp-fill');
+  if (fill) {
+    const frac = (idx === cur.index) ? cur.frac : 1;   // соседние — полная полоса (виден цвет)
+    fill.style.width = (frac * 100) + '%';
+    fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')';
+  }
 }
-function pfUpdateThumb(track) {
-  const win = track.closest('.pf-window'); if (!win) return;
-  const thumb = win.querySelector('.pf-scrollbar-thumb'); if (!thumb) return;
-  const max = track.scrollWidth - track.clientWidth;
-  const wRatio = track.scrollWidth > 0 ? track.clientWidth / track.scrollWidth : 1;
-  const wPct = Math.max(10, Math.min(100, wRatio * 100));
-  const pos = max > 0 ? track.scrollLeft / max : 0;
-  thumb.style.width = wPct + '%';
-  thumb.style.left = (pos * (100 - wPct)) + '%';
+function pfUpdateScrollbar() {
+  const total = RANKS.length;
+  const wPct = Math.max(10, 100 / total);
+  const pos = total > 1 ? pfIndex / (total - 1) : 0;
+  document.querySelectorAll('.pf-scrollbar-thumb').forEach(th => {
+    th.style.width = wPct + '%';
+    th.style.left = (pos * (100 - wPct)) + '%';
+  });
+}
+function pfGoto(idx) {
+  const old = pfIndex;
+  pfIndex = Math.max(0, Math.min(RANKS.length - 1, idx));
+  if (pfIndex === old) return;
+  const dir = pfIndex > old ? 1 : -1;
+  const curIdx = rankInfo(getXP()).index;
+  const targetOp = pfIndex > curIdx ? '0.62' : '1';   // будущие ранги чуть затемнены
+  document.querySelectorAll('.pf-card').forEach(card => {
+    card.style.transition = 'none';
+    card.style.transform = 'translateX(' + (dir * 18) + 'px)';
+    card.style.opacity = '0.3';
+    pfRenderCard(card, pfIndex);
+    requestAnimationFrame(() => {
+      card.style.transition = 'transform 0.22s cubic-bezier(.25,.9,.3,1), opacity 0.22s ease';
+      card.style.transform = 'translateX(0)';
+      card.style.opacity = targetOp;
+    });
+  });
+  pfUpdateScrollbar();
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+}
+function pfBindSwipe() {
+  document.querySelectorAll('.pf-window').forEach(win => {
+    if (win._pfSwipe) return; win._pfSwipe = true;
+    let sx = 0, sy = 0, active = false;
+    win.addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; active = true; }, { passive: true });
+    win.addEventListener('touchend', e => {
+      if (!active) return; active = false;
+      const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.abs(dx) > 34 && Math.abs(dx) > Math.abs(dy)) pfGoto(pfIndex + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  });
 }
 function renderProfile() {
-  const cur = rankInfo(getXP());
-  const name = pfDisplayName();
-  const avaBg = (tgUser && tgUser.photo_url) ? tgUser.photo_url : '';
-  const avaTxt = (tgUser && tgUser.first_name ? tgUser.first_name[0] : 'И').toUpperCase();
-  const html = RANKS.map((r, i) => pfSlideHTML(i, cur, name, avaBg, avaTxt)).join('');
-  document.querySelectorAll('.pf-track').forEach(track => {
-    track.innerHTML = html;
-    if (!track._pfBound) { track._pfBound = true; track.addEventListener('scroll', () => pfUpdateThumb(track)); }
+  pfIndex = rankInfo(getXP()).index;
+  document.querySelectorAll('.pf-card').forEach(card => {
+    card.style.transition = 'none'; card.style.transform = 'translateX(0)'; card.style.opacity = '1';
+    pfRenderCard(card, pfIndex);
   });
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    document.querySelectorAll('.pf-track').forEach(track => {
-      const c = track.querySelector('.pf-slide.current');
-      if (c && track.clientWidth) track.scrollLeft = c.offsetLeft - (track.clientWidth - c.offsetWidth) / 2;
-      pfUpdateThumb(track);
-    });
-  }));
+  pfBindSwipe();
+  pfUpdateScrollbar();
 }
 
 // ---- оверлей конца раунда ----
@@ -1773,78 +1788,103 @@ function snakeDrawFruit(side, burst) {
   }
 }
 
-function snakePaint(side) {
-  side.gBody.innerHTML = '';
-  const edges = [], fills = [];
-  // мостики
-  for (let i = 0; i < side.cells.length - 1; i++) {
-    const a = side.cells[i], b = side.cells[i + 1];
-    if (a.r === b.r) {
-      const x = Math.min(a.c, b.c) + 0.5;
-      edges.push(svgEl('rect', { class: 'snk-edge', x: x - 0.05, y: a.r + 0.11, width: 1.1, height: 0.78, rx: 0.14 }));
-      fills.push(svgEl('rect', { class: 'snk-br', x: x, y: a.r + 0.18, width: 1, height: 0.64, rx: 0.12 }));
-    } else {
-      const y = Math.min(a.r, b.r) + 0.5;
-      edges.push(svgEl('rect', { class: 'snk-edge', x: a.c + 0.11, y: y - 0.05, width: 0.78, height: 1.1, rx: 0.14 }));
-      fills.push(svgEl('rect', { class: 'snk-br', x: a.c + 0.18, y: y, width: 0.64, height: 1, rx: 0.12 }));
-    }
-  }
-  const last = side.cells.length - 1;
-  side.cells.forEach((p, idx) => {
-    if (idx === 0) {
-      const d = side.dir;
-      const headR = (x, y, w, R, n) => {
-        let tl = n, tr = n, br = n, bl = n;
-        if (d.c === 1) { tr = R; br = R; }
-        else if (d.c === -1) { tl = R; bl = R; }
-        else if (d.r === 1) { bl = R; br = R; }
-        else { tl = R; tr = R; }
-        return roundRectPath(x, y, w, w, tl, tr, br, bl);
-      };
-      edges.push(svgEl('path', { class: 'snk-edge', d: headR(p.c + 0.02, p.r + 0.02, 0.96, 0.48, 0.24) }));
-      fills.push(svgEl('path', { class: 'snk-head', d: headR(p.c + 0.08, p.r + 0.08, 0.84, 0.42, 0.18) }));
-      // глазки у переднего края
-      let ew, eh, e1, e2;
-      if (d.c === 1)       { ew = 0.09; eh = 0.26; e1 = [p.c + 0.56, p.r + 0.2]; e2 = [p.c + 0.56, p.r + 0.54]; }
-      else if (d.c === -1) { ew = 0.09; eh = 0.26; e1 = [p.c + 0.35, p.r + 0.2]; e2 = [p.c + 0.35, p.r + 0.54]; }
-      else if (d.r === 1)  { ew = 0.26; eh = 0.09; e1 = [p.c + 0.2, p.r + 0.56]; e2 = [p.c + 0.54, p.r + 0.56]; }
-      else                 { ew = 0.26; eh = 0.09; e1 = [p.c + 0.2, p.r + 0.35]; e2 = [p.c + 0.54, p.r + 0.35]; }
-      const c1 = [e1[0] + ew / 2, e1[1] + eh / 2], c2 = [e2[0] + ew / 2, e2[1] + eh / 2];
-      if (side.hitEyes) {
-        // мёртвые — крестики
-        [c1, c2].forEach(c => {
-          const s = 0.1, xg = svgEl('g', { class: 'snk-eye-x' });
-          xg.appendChild(svgEl('line', { x1: c[0] - s, y1: c[1] - s, x2: c[0] + s, y2: c[1] + s }));
-          xg.appendChild(svgEl('line', { x1: c[0] - s, y1: c[1] + s, x2: c[0] + s, y2: c[1] - s }));
-          fills.push(xg);
-        });
-      } else {
-        // полоски под углом; знак наклона зависит от направления (всегда «фокус вперёд»)
-        const ang = 20;
-        const a1 = (d.c === 1 || d.r === 1) ? ang : -ang;
-        fills.push(svgEl('rect', { class: 'snk-eye', x: e1[0], y: e1[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + a1 + ' ' + c1[0] + ' ' + c1[1] + ')' }));
-        fills.push(svgEl('rect', { class: 'snk-eye', x: e2[0], y: e2[1], width: ew, height: eh, rx: 0.045, transform: 'rotate(' + (-a1) + ' ' + c2[0] + ' ' + c2[1] + ')' }));
-      }
-    } else if (idx === last) {
-      const prev = side.cells[idx - 1];
-      const dr = p.r - prev.r, dc = p.c - prev.c;
-      // хвост-«карандаш»: до середины по ширине мостика (встык, без ступеньки), сужение ниже
-      const tailPts = (off, mid, far) => {
-        if (dc === 1)  return [[p.c + 0.2, p.r + off], [p.c + 0.2, p.r + 1 - off], [p.c + mid, p.r + 1 - off], [p.c + far, p.r + 0.5], [p.c + mid, p.r + off]];
-        if (dc === -1) return [[p.c + 0.8, p.r + off], [p.c + 0.8, p.r + 1 - off], [p.c + 1 - mid, p.r + 1 - off], [p.c + 1 - far, p.r + 0.5], [p.c + 1 - mid, p.r + off]];
-        if (dr === 1)  return [[p.c + off, p.r + 0.2], [p.c + 1 - off, p.r + 0.2], [p.c + 1 - off, p.r + mid], [p.c + 0.5, p.r + far], [p.c + off, p.r + mid]];
-        return [[p.c + off, p.r + 0.8], [p.c + 1 - off, p.r + 0.8], [p.c + 1 - off, p.r + 1 - mid], [p.c + 0.5, p.r + 1 - far], [p.c + off, p.r + 1 - mid]];
-      };
-      const toStr = a => a.map(q => q.join(',')).join(' ');
-      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: toStr(tailPts(0.11, 0.52, 0.9)) }));
-      fills.push(svgEl('polygon', { class: 'snk-tail', points: toStr(tailPts(0.18, 0.52, 0.85)) }));
-    } else {
-      edges.push(svgEl('rect', { class: 'snk-edge', x: p.c + 0.03, y: p.r + 0.03, width: 0.94, height: 0.94, rx: 0.27 }));
-      fills.push(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));
-    }
+function snakeNow() { return (typeof performance !== 'undefined' ? performance.now() : Date.now()); }
+function snakeLerpCells(side, t) {
+  return side.cells.map((cur, i) => {
+    const from = (side.fromCells && i < side.fromCells.length) ? side.fromCells[i] : cur;
+    return { x: (from.c + (cur.c - from.c) * t) + 0.5, y: (from.r + (cur.r - from.r) * t) + 0.5 };
   });
+}
+function snakeHeadPath(cx, cy, size, d, R, nn) {
+  const x = cx - size / 2, y = cy - size / 2;
+  let tl = nn, tr = nn, br = nn, bl = nn;
+  if (d.c === 1) { tr = R; br = R; }
+  else if (d.c === -1) { tl = R; bl = R; }
+  else if (d.r === 1) { bl = R; br = R; }
+  else { tl = R; tr = R; }
+  return roundRectPath(x, y, size, size, tl, tr, br, bl);
+}
+function snakeEyesGroup(side, cx, cy, d) {
+  // единый «канонический» макет глаз (как при движении вправо), повёрнутый на угол головы —
+  // значит в любом направлении глаза выглядят одинаково
+  let fa = 0;
+  if (d.c === 1) fa = 0; else if (d.r === 1) fa = 90; else if (d.c === -1) fa = 180; else fa = -90;
+  const g = svgEl('g', { transform: 'rotate(' + fa + ' ' + cx + ' ' + cy + ')' });
+  const eyes = [{ x: cx + 0.16, y: cy - 0.17, tilt: 18 }, { x: cx + 0.16, y: cy + 0.17, tilt: -18 }];
+  if (side.hitEyes) {
+    eyes.forEach(e => {
+      const s = 0.1, xg = svgEl('g', { class: 'snk-eye-x' });
+      xg.appendChild(svgEl('line', { x1: e.x - s, y1: e.y - s, x2: e.x + s, y2: e.y + s }));
+      xg.appendChild(svgEl('line', { x1: e.x - s, y1: e.y + s, x2: e.x + s, y2: e.y - s }));
+      g.appendChild(xg);
+    });
+  } else {
+    const ew = 0.1, eh = 0.26;
+    eyes.forEach(e => g.appendChild(svgEl('rect', { class: 'snk-eye', x: e.x - ew / 2, y: e.y - eh / 2, width: ew, height: eh, rx: 0.05, transform: 'rotate(' + e.tilt + ' ' + e.x + ' ' + e.y + ')' })));
+  }
+  return g;
+}
+function snakePaint(side, t) {
+  if (t == null) t = 1;
+  const pts = snakeLerpCells(side, t);
+  const n = pts.length;
+  side.gBody.innerHTML = '';
+  side._waveEls = [];
+  const edges = [], fills = [];
+  const W = 0.7, EW = 0.9;
+  const d = side.dir, h = pts[0];
+  // обводка тела единой линией (равномерный контур)
+  if (n - 1 >= 2) {
+    const list = pts.slice(0, n - 1).map(p => p.x.toFixed(3) + ',' + p.y.toFixed(3)).join(' ');
+    edges.push(svgEl('polyline', { class: 'snk-edge', points: list, fill: 'none', 'stroke-width': EW }));
+  }
+  // голова (сегмент 0 — для волны цвета)
+  edges.push(svgEl('path', { class: 'snk-edge', d: snakeHeadPath(h.x, h.y, 0.98, d, 0.49, 0.24) }));
+  const headFill = svgEl('path', { class: 'snk-head', d: snakeHeadPath(h.x, h.y, 0.84, d, 0.42, 0.18) });
+  fills.push(headFill); side._waveEls.push(headFill);
+  // звенья тела
+  for (let i = 0; i < n - 2; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const lk = svgEl('line', { class: 'snk-link', x1: a.x, y1: a.y, x2: b.x, y2: b.y, 'stroke-width': W });
+    fills.push(lk); side._waveEls.push(lk);
+  }
+  // хвост-«карандаш» (последний сегмент), по направлению последнего звена
+  if (n >= 2) {
+    const tip = pts[n - 1], nb = pts[n - 2];
+    let dx = tip.x - nb.x, dy = tip.y - nb.y; const ln = Math.hypot(dx, dy) || 1; dx /= ln; dy /= ln;
+    const px = -dy, py = dx;
+    const mkTail = (hw, ext) => {
+      const b1 = [nb.x + px * hw, nb.y + py * hw], b2 = [nb.x - px * hw, nb.y - py * hw], tp = [tip.x + dx * ext, tip.y + dy * ext];
+      return [b1, b2, tp].map(v => v[0].toFixed(3) + ',' + v[1].toFixed(3)).join(' ');
+    };
+    edges.push(svgEl('polygon', { class: 'snk-edge', points: mkTail(0.40, 0.20) }));
+    const tailFill = svgEl('polygon', { class: 'snk-tail', points: mkTail(0.33, 0.12) });
+    fills.push(tailFill); side._waveEls.push(tailFill);
+  }
+  // глаза поверх
+  fills.push(snakeEyesGroup(side, h.x, h.y, d));
   edges.forEach(e => side.gBody.appendChild(e));
   fills.forEach(e => side.gBody.appendChild(e));
+}
+function snakeWaveColor(side, col) {
+  // волна цвета от блока столкновения (голова, i=0) к хвосту
+  const step = 70;
+  (side._waveEls || []).forEach((el, i) => {
+    el.style.transitionDelay = (i * step) + 'ms';
+    if (el.tagName && el.tagName.toLowerCase() === 'line') el.style.stroke = col;
+    else el.style.fill = col;
+  });
+}
+function snakeRenderLoop() {
+  if (!snakeState) return;
+  const now = snakeNow();
+  [snakeState.me, snakeState.ai].forEach(side => {
+    if (side && side.state === 'alive' && side.gBody) {
+      const t = (snakeState.running && side.tickAt) ? Math.min(1, (now - side.tickAt) / SNAKE_TICK) : 1;
+      snakePaint(side, t);
+    }
+  });
+  snakeState._raf = requestAnimationFrame(snakeRenderLoop);
 }
 
 function snakeAdvance(side, dir) {
@@ -1914,41 +1954,44 @@ function snakeDeath(side) {
   side.state = 'dying';
   side.lives--;
   side.hitEyes = true;        // глаза-крестики сразу при столкновении
-  snakePaint(side);
+  side.fromCells = null;
+  snakePaint(side, 1);        // зафиксировали кадр + собрали сегменты для волны
   snakeRenderLives();
-  const deathLen = side.cells.length;
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(side.who === 'me' ? 'warning' : 'success'); } catch (e) {}
 
   if (side.lives <= 0) {
-    // ФИНАЛ: точки (белые → дырки цвета поля), тело становится серым
+    // ФИНАЛ: волна в серый + точки
+    snakeWaveColor(side, 'var(--miss)');
+    snakeSetColor(side, 'var(--miss)', 'var(--miss)');
     side.gMarks.innerHTML = '';
     side.cells.forEach((p, idx) => {
       const m = svgEl('rect', { class: 'snk-mark', x: p.c + 0.33, y: p.r + 0.33, width: 0.34, height: 0.34, rx: 0.17 });
-      m.style.animationDelay = (idx * 0.05).toFixed(2) + 's';
+      m.style.animationDelay = (0.3 + idx * 0.07).toFixed(2) + 's';
       side.gMarks.appendChild(m);
     });
-    setTimeout(() => snakeSetColor(side, 'var(--miss)', 'var(--miss)'), 520);
-    const dur = 900 + side.cells.length * 50;
+    const dur = 800 + side.cells.length * 110;
     setTimeout(() => { side.state = 'dead'; snakeCheckOver(); }, dur);
     return;
   }
 
-  // 1-я смерть → синий (убитый), 2-я → красный (подбитый); без точек
+  // 1-я смерть → синий (убитый), 2-я → красный (подбитый); волной от головы
   const col = SNAKE_DMG[side.lives];
+  snakeWaveColor(side, col);
   snakeSetColor(side, col, col);
   setTimeout(() => {
     snakeCountdownOn(side, () => {
       side.cells = snakeStartCells(3);  // после смерти змейка снова маленькая
       side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
+      side.fromCells = null; side.tickAt = 0;
       side.hitEyes = false;
-      side.hungerStart = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      side.hungerStart = snakeNow();
       side.lastShrink = 0;
       snakeSpawnFruit(side);
-      snakePaint(side);
+      snakePaint(side, 1);
       snakeDrawFruit(side);
       side.state = 'alive';
     });
-  }, 480);
+  }, 700);
 }
 
 function snakeCheckOver() {
@@ -2007,9 +2050,10 @@ function updateHunger(me) {
 
 function snakeTick() {
   if (!snakeState || !snakeState.running) return;
-  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const now = snakeNow();
   [snakeState.me, snakeState.ai].forEach(side => {
     if (side.state !== 'alive') return;
+    side.fromCells = side.cells.map(p => ({ r: p.r, c: p.c }));   // откуда плавно едем
     side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
     const res = snakeAdvance(side, side.dir);
     if (res === 'crash') { snakeDeath(side); return; }
@@ -2026,7 +2070,7 @@ function snakeTick() {
       if (side.cells.length > 2) side.cells.pop();
       else { snakeDeath(side); return; }
     }
-    snakePaint(side);
+    side.tickAt = now;   // отрисовку с интерполяцией ведёт snakeRenderLoop
   });
   updateHunger(snakeState.me);
 }
@@ -2039,11 +2083,12 @@ function snakeEnd(win, fruits, comboXP) {
 }
 
 function snakeStop() {
-  if (snakeState) { snakeState.running = false; clearInterval(snakeState.interval); }
+  if (snakeState) { snakeState.running = false; clearInterval(snakeState.interval); if (snakeState._raf) cancelAnimationFrame(snakeState._raf); }
 }
 
 function startSnake() {
   currentGame = 'snake';
+  if (snakeState && snakeState._raf) cancelAnimationFrame(snakeState._raf);
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('opp-select').classList.add('hidden');
@@ -2056,11 +2101,13 @@ function startSnake() {
   { const el = document.getElementById('snake-hunger'); if (el) el.classList.remove('show', 'urgent'); }
   [me, ai].forEach(side => {
     side.cells = snakeStartCells(3);
+    side.fromCells = null; side.tickAt = 0;
     snakeSpawnFruit(side);
-    snakePaint(side);
+    snakePaint(side, 1);
     snakeDrawFruit(side);
   });
   snakeRenderLives();
+  snakeState._raf = requestAnimationFrame(snakeRenderLoop);
   document.getElementById('snake-screen').classList.remove('hidden');
   me.dim.classList.add('show'); ai.dim.classList.add('show');
   let n = 3;
