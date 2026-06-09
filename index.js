@@ -1704,7 +1704,7 @@ renderProfile();
 
 // ===================== РЕЖИМ «ЗМЕЙКА» =====================
 const SNAKE_N = 11;
-const SNAKE_TICK = 170;
+const SNAKE_TICK = 200;
 const SNAKE_LIVES = 3;
 const SVGNS = 'http://www.w3.org/2000/svg';
 // базовые цвета (живая змейка) — из палитры морского боя
@@ -1737,28 +1737,37 @@ function buildSnakeGrid(id, who) {
   g.innerHTML = '';
   const svg = svgEl('svg', { class: 'snake-svg', viewBox: '0 0 11 11', preserveAspectRatio: 'xMidYMid meet' });
   const c = SNAKE_BASE[who];
-  svg.style.setProperty('--sc', c.sc);
-  svg.style.setProperty('--sc-h', c.sch);
-  svg.style.setProperty('--sc-edge', c.edge);
   const bg = svgEl('g', {});
   for (let r = 0; r < SNAKE_N; r++)
     for (let col = 0; col < SNAKE_N; col++)
       bg.appendChild(svgEl('rect', { class: 'snk-bgc', x: col + 0.06, y: r + 0.06, width: 0.88, height: 0.88, rx: 0.18 }));
   const gFruit = svgEl('g', {});
   const gBody = svgEl('g', {});
+  gBody.style.setProperty('--sc', c.sc); gBody.style.setProperty('--sc-h', c.sch); gBody.style.setProperty('--sc-edge', c.edge);
+  const innerId = 'snake-inner-' + who;
+  const inner = svgEl('g', { id: innerId });
+  gBody.appendChild(inner);
+  // 8 тор-клонов для бесшовного перехода через край (svg клипует лишнее)
+  [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].forEach(s => {
+    const u = document.createElementNS(SVGNS, 'use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + innerId);
+    u.setAttribute('href', '#' + innerId);
+    u.setAttribute('transform', 'translate(' + (s[0] * SNAKE_N) + ' ' + (s[1] * SNAKE_N) + ')');
+    gBody.appendChild(u);
+  });
   const gMarks = svgEl('g', {});
   svg.appendChild(bg); svg.appendChild(gFruit); svg.appendChild(gBody); svg.appendChild(gMarks);
   g.appendChild(svg);
   const dimEl = document.createElement('div'); dimEl.className = 'snake-dim';
   const num = document.createElement('span'); num.className = 'snake-num';
   dimEl.appendChild(num); g.appendChild(dimEl);
-  return { svg, gFruit, gBody, gMarks, dim: dimEl, num };
+  return { svg, gFruit, gBody, gMarks, inner, dim: dimEl, num };
 }
 
 function snakeMakeSide(refs, who) {
   return {
     who, base: SNAKE_BASE[who],
-    svg: refs.svg, gFruit: refs.gFruit, gBody: refs.gBody, gMarks: refs.gMarks,
+    svg: refs.svg, gFruit: refs.gFruit, gBody: refs.gBody, gMarks: refs.gMarks, _inner: refs.inner,
     dim: refs.dim, num: refs.num,
     cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
     fruit: null, lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0,
@@ -1858,8 +1867,8 @@ function snakeDrawBody(group, pts, d, hitEyes) {
       const b1 = [nb.x + px * hw, nb.y + py * hw], b2 = [nb.x - px * hw, nb.y - py * hw], tp = [tip.x + dx * ext, tip.y + dy * ext];
       return [b1, b2, tp].map(v => v[0].toFixed(3) + ',' + v[1].toFixed(3)).join(' ');
     };
-    edges.push(svgEl('polygon', { class: 'snk-edge', 'stroke-width': 0, points: mkTail(0.40, 0.20) }));
-    const tailFill = svgEl('polygon', { class: 'snk-tail', points: mkTail(0.33, 0.12) });
+    edges.push(svgEl('polygon', { class: 'snk-edge', 'stroke-width': 0.30, 'stroke-linejoin': 'round', points: mkTail(0.26, 0.00) }));
+    const tailFill = svgEl('polygon', { class: 'snk-tail', 'stroke-width': 0.30, points: mkTail(0.18, -0.06) });
     fills.push(tailFill); waveEls.push(tailFill);
   }
   fills.push(snakeEyesGroup(hitEyes, h.x, h.y, d));
@@ -1867,11 +1876,29 @@ function snakeDrawBody(group, pts, d, hitEyes) {
   fills.forEach(e => group.appendChild(e));
   return waveEls;
 }
-function snakePaint(side, t) {
+function snakeMinwrap(delta, size) { let x = ((delta % size) + size) % size; if (x > size / 2) x -= size; return x; }
+// тороидальная отрисовка: «разворачиваем» клетки в непрерывные виртуальные координаты,
+// рисуем во внутреннюю группу; 8 <use>-клонов + клип svg дают бесшовный переход через край
+function torusPaint(side, t, cols, rows) {
   if (t == null) t = 1;
-  const pts = snakeLerpCells(side, t);
-  side._waveEls = snakeDrawBody(side.gBody, pts, side.dir, side.hitEyes);
+  const cells = side.cells, from = side.fromCells, m = cells.length;
+  if (!m || !side._inner) return;
+  const Vc = [cells[0].c], Vr = [cells[0].r];
+  for (let i = 1; i < m; i++) {
+    Vc.push(Vc[i - 1] + snakeMinwrap(cells[i].c - cells[i - 1].c, cols));
+    Vr.push(Vr[i - 1] + snakeMinwrap(cells[i].r - cells[i - 1].r, rows));
+  }
+  const pts = cells.map((cur, i) => {
+    let fc = Vc[i], fr = Vr[i];
+    if (from && i < from.length) {
+      fc = Vc[i] + snakeMinwrap(from[i].c - cur.c, cols);
+      fr = Vr[i] + snakeMinwrap(from[i].r - cur.r, rows);
+    }
+    return { x: (fc + (Vc[i] - fc) * t) + 0.5, y: (fr + (Vr[i] - fr) * t) + 0.5 };
+  });
+  side._waveEls = snakeDrawBody(side._inner, pts, side.dir, side.hitEyes);
 }
+function snakePaint(side, t) { torusPaint(side, t, SNAKE_N, SNAKE_N); }
 function snakeWaveColor(side, col) {
   // волна цвета от блока столкновения (голова, i=0) к хвосту — переход вешаем инлайном
   // (в базовых правилах transition нет, чтобы плавная перерисовка кадров не мазала)
@@ -1897,11 +1924,11 @@ function snakeRenderLoop() {
 
 function snakeAdvance(side, dir) {
   const head = side.cells[0];
-  const nr = head.r + dir.r, nc = head.c + dir.c;
-  if (nr < 0 || nr >= SNAKE_N || nc < 0 || nc >= SNAKE_N) return 'crash';
+  const nr = ((head.r + dir.r) % SNAKE_N + SNAKE_N) % SNAKE_N;
+  const nc = ((head.c + dir.c) % SNAKE_N + SNAKE_N) % SNAKE_N;   // выход за край → возврат с другой стороны
   const willEat = side.fruit && nr === side.fruit.r && nc === side.fruit.c;
   const body = willEat ? side.cells : side.cells.slice(0, side.cells.length - 1);
-  for (const p of body) if (p.r === nr && p.c === nc) return 'crash';
+  for (const p of body) if (p.r === nr && p.c === nc) return 'crash';   // смерть только от самоукуса
   side.cells.unshift({ r: nr, c: nc });
   if (willEat) { side._eaten = { r: nr, c: nc }; snakeSpawnFruit(side); return 'eat'; }
   side.cells.pop();
@@ -1913,15 +1940,14 @@ function aiPickDir(side) {
   const all = [{ r: 0, c: 1 }, { r: 0, c: -1 }, { r: 1, c: 0 }, { r: -1, c: 0 }];
   const opts = all.filter(d => !(d.r === -side.dir.r && d.c === -side.dir.c));
   const occ = new Set(side.cells.slice(0, side.cells.length - 1).map(p => p.r + '_' + p.c));
-  const safe = opts.filter(d => {
-    const nr = head.r + d.r, nc = head.c + d.c;
-    return nr >= 0 && nr < SNAKE_N && nc >= 0 && nc < SNAKE_N && !occ.has(nr + '_' + nc);
-  });
+  const cellOf = d => ({ r: ((head.r + d.r) % SNAKE_N + SNAKE_N) % SNAKE_N, c: ((head.c + d.c) % SNAKE_N + SNAKE_N) % SNAKE_N });
+  const safe = opts.filter(d => { const n = cellOf(d); return !occ.has(n.r + '_' + n.c); });
   const pool = safe.length ? safe : opts;
   if (side.fruit) {
     pool.sort((a, b) => {
-      const da = Math.abs(head.r + a.r - side.fruit.r) + Math.abs(head.c + a.c - side.fruit.c);
-      const db = Math.abs(head.r + b.r - side.fruit.r) + Math.abs(head.c + b.c - side.fruit.c);
+      const na = cellOf(a), nb = cellOf(b);
+      const da = Math.abs(snakeMinwrap(na.r - side.fruit.r, SNAKE_N)) + Math.abs(snakeMinwrap(na.c - side.fruit.c, SNAKE_N));
+      const db = Math.abs(snakeMinwrap(nb.r - side.fruit.r, SNAKE_N)) + Math.abs(snakeMinwrap(nb.c - side.fruit.c, SNAKE_N));
       return da - db;
     });
   }
@@ -1941,9 +1967,9 @@ function snakeRenderLives() {
 }
 
 function snakeSetColor(side, sc, sch) {
-  side.svg.style.setProperty('--sc', sc);
-  side.svg.style.setProperty('--sc-h', sch || sc);
-  side.svg.style.setProperty('--sc-edge', 'color-mix(in srgb, ' + sc + ', #000 32%)');
+  side.gBody.style.setProperty('--sc', sc);
+  side.gBody.style.setProperty('--sc-h', sch || sc);
+  side.gBody.style.setProperty('--sc-edge', 'color-mix(in srgb, ' + sc + ', #000 32%)');
 }
 
 function snakeCountdownOn(side, onDone) {
@@ -2222,25 +2248,7 @@ function arenaSetColor(side, sc, sch) {
   side.gBody.style.setProperty('--sc-h', sch || sc);
   side.gBody.style.setProperty('--sc-edge', 'color-mix(in srgb, ' + sc + ', #000 32%)');
 }
-function arenaPaintSnake(side, t) {
-  if (t == null) t = 1;
-  const cells = side.cells, from = side.fromCells, m = cells.length;
-  if (!m) { side._inner.innerHTML = ''; return; }
-  const Vc = [cells[0].c], Vr = [cells[0].r];
-  for (let i = 1; i < m; i++) {
-    Vc.push(Vc[i - 1] + arenaMinwrap(cells[i].c - cells[i - 1].c, ARENA_COLS));
-    Vr.push(Vr[i - 1] + arenaMinwrap(cells[i].r - cells[i - 1].r, ARENA_ROWS));
-  }
-  const pts = cells.map((cur, i) => {
-    let fc = Vc[i], fr = Vr[i];
-    if (from && i < from.length) {
-      fc = Vc[i] + arenaMinwrap(from[i].c - cur.c, ARENA_COLS);
-      fr = Vr[i] + arenaMinwrap(from[i].r - cur.r, ARENA_ROWS);
-    }
-    return { x: (fc + (Vc[i] - fc) * t) + 0.5, y: (fr + (Vr[i] - fr) * t) + 0.5 };
-  });
-  side._waveEls = snakeDrawBody(side._inner, pts, side.dir, side.hitEyes);
-}
+function arenaPaintSnake(side, t) { torusPaint(side, t, ARENA_COLS, ARENA_ROWS); }
 function arenaOccupied() {
   const s = new Set();
   [arenaState.me, arenaState.ai].forEach(sd => sd.cells.forEach(p => s.add(p.r + '_' + p.c)));
