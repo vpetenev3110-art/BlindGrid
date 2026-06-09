@@ -132,37 +132,7 @@
     100% { transform: translateY(-105vh) rotate(var(--rot,0deg)) scale(0.85); opacity: 0; }
   }
 
-  /* ===== загрузочный экран ===== */
-  #loader {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
-    background: var(--bg-grad, linear-gradient(135deg,#1a1828 0%,#211d33 60%,#1b1a2c 100%));
-    transition: opacity 0.5s ease;
-  }
-  #loader.done { opacity: 0; pointer-events: none; }
-  #loader-particles { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
-  #loader-stage { position: relative; width: 150px; height: 96px; z-index: 1; }
-  /* базовое состояние = СОБРАННОЕ (видно всегда); въезд гоним из JS через transition */
-  .load-piece {
-    position: absolute; border-radius: 6px;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.28);
-    transition: transform 0.6s cubic-bezier(.2,.8,.3,1.05);
-  }
-  .lp1 { left: 40px; top: 6px;  width: 70px; height: 18px; background: var(--grad-2); }
-  .lp2 { left: 40px; top: 72px; width: 70px; height: 18px; background: var(--grad-1); }
-  .lp3 { left: 14px; top: 18px; width: 18px; height: 60px; background: var(--grad-3); }
-  .lp4 { left: 118px;top: 18px; width: 18px; height: 60px; background: var(--grad-4); }
-  .lp5 { display: none; }
-  .load-cross {
-    position: absolute; left: 50%; top: 50%; color: var(--miss); z-index: 2; line-height: 0;
-    transform: translate(-50%,-50%);
-    transition: transform 0.5s cubic-bezier(.34,1.5,.5,1);
-  }
-  #loader-word {
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: 3px; z-index: 1;
-    color: var(--ink, #eceaf6);
-    transition: transform 0.5s ease;
-  }
+  /* ===== загрузочный экран (минимальный кружок) — стили в инлайне <head> ===== */
 
   #header {
     position: relative; z-index: 2;
@@ -828,9 +798,9 @@
   #snake-center {
     flex: 1; width: 100%; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 6px;
-    padding: 2px 14px 66px; overflow: hidden; touch-action: none;
-    --big-w: min(94vw, 392px);
-    --mini-w: min(46vw, 178px);
+    padding: 2px 8px 58px; overflow: hidden; touch-action: none;
+    --big-w: min(96vw, 416px);
+    --mini-w: min(46vw, 180px);
   }
   .snake-board-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
   .big-wrap  { --snake-w: var(--big-w); }
@@ -876,10 +846,10 @@
   /* комбо как в морском бою, в левом верхнем углу поля игрока */
   .snake-grid-holder { position: relative; width: 100%; max-width: var(--big-w); margin: 0 auto; }
   #snake-combo-tag {
-    position: absolute; left: 6px; top: -14px; z-index: 8;
+    position: absolute; right: 6px; top: -14px; z-index: 8;
     pointer-events: none; opacity: 0;
     transform: rotate(11deg) scale(0);
-    transform-origin: left center;
+    transform-origin: right center;
     white-space: nowrap;
   }
 

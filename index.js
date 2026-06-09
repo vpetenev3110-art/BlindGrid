@@ -85,7 +85,6 @@ function makeParticles(layerId) {
 }
 makeParticles('particles');
 makeParticles('menu-particles');
-makeParticles('loader-particles');
 
 // перезапуск красивой анимации лого меню (вызывается после загрузочного экрана — надёжная точка)
 function playMenuLogo() {
@@ -105,56 +104,29 @@ function playMenuLogo() {
     });
   } catch (e) {}
 }
-// загрузочный экран: фигуры собираются (через JS-transition), затем уходим в меню и запускаем лого
+// загрузочный экран: простой кружок, скрываем по готовности страницы
 (function () {
   var loader = document.getElementById('loader');
   if (!loader) return;
-
-  // въезд сборки через transition — базовое состояние уже собранное, поэтому при сбое всё видно
-  try {
-    var stage = document.getElementById('loader-stage');
-    var starts = {
-      lp1: 'translate(55px,-70px) rotate(170deg) scale(.5)',
-      lp2: 'translate(-58px,75px) rotate(-160deg) scale(.5)',
-      lp3: 'translate(-78px,-26px) rotate(-210deg) scale(.5)',
-      lp4: 'translate(78px,32px) rotate(210deg) scale(.5)'
-    };
-    var cross = stage && stage.querySelector('.load-cross');
-    var word = document.getElementById('loader-word');
-    if (stage) {
-      Object.keys(starts).forEach(function (k) {
-        var el = stage.querySelector('.' + k);
-        if (el) el.style.transform = starts[k];
-      });
-    }
-    if (cross) cross.style.transform = 'translate(-50%,-50%) rotate(-150deg) scale(.18)';
-    if (word) word.style.transform = 'translateY(12px) scale(.9)';
-    // на следующий кадр возвращаем в финальное состояние → transition проигрывает сборку
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        if (stage) Object.keys(starts).forEach(function (k) {
-          var el = stage.querySelector('.' + k);
-          if (el) el.style.transform = 'translate(0,0) rotate(0deg) scale(1)';
-        });
-        if (cross) setTimeout(function () { cross.style.transform = 'translate(-50%,-50%) rotate(0deg) scale(1)'; }, 260);
-        if (word) setTimeout(function () { word.style.transform = 'translateY(0) scale(1)'; }, 420);
-      });
-    });
-  } catch (e) {}
-
+  var start = Date.now();
   var hidden = false;
   function hideLoader() {
     if (hidden) return; hidden = true;
     loader.classList.add('done');
-    loader.style.transition = 'opacity 0.45s ease';
     loader.style.opacity = '0';
     loader.style.pointerEvents = 'none';
-    setTimeout(function () { loader.style.display = 'none'; }, 480);   // гарантированно
+    setTimeout(function () { loader.style.display = 'none'; }, 380);
     try { playMenuLogo(); } catch (e) {}
-    setTimeout(function () { try { ensureMenuLogoVisible(); } catch (e) {} }, 1300);
+    setTimeout(function () { try { ensureMenuLogoVisible(); } catch (e) {} }, 600);
   }
-  setTimeout(hideLoader, 1650);   // дольше — чтобы собранное лого было видно
-  window.addEventListener('load', function () { setTimeout(hideLoader, 1650); });
+  // минимум 500мс показа, иначе мелькнёт; прячем когда страница готова
+  function ready() {
+    var wait = Math.max(0, 500 - (Date.now() - start));
+    setTimeout(hideLoader, wait);
+  }
+  if (document.readyState === 'complete') ready();
+  else window.addEventListener('load', ready);
+  setTimeout(hideLoader, 4000);   // подстраховка
 })();
 
 const MODES = {
@@ -1797,8 +1769,8 @@ function snakePaint(side) {
         else pts = [[x + w / 2, y], [x, y + w], [x + w, y + w]];
         return pts.map(q => q.join(',')).join(' ');
       };
-      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: tri(p.c + 0.18, p.r + 0.18, 0.64) }));
-      fills.push(svgEl('polygon', { class: 'snk-tail', points: tri(p.c + 0.27, p.r + 0.27, 0.46) }));
+      edges.push(svgEl('polygon', { class: 'snk-edge snk-tail-e', points: tri(p.c + 0.03, p.r + 0.03, 0.94) }));
+      fills.push(svgEl('polygon', { class: 'snk-tail', points: tri(p.c + 0.1, p.r + 0.1, 0.8) }));
     } else {
       edges.push(svgEl('rect', { class: 'snk-edge', x: p.c + 0.03, y: p.r + 0.03, width: 0.94, height: 0.94, rx: 0.27 }));
       fills.push(svgEl('rect', { class: 'snk-cube', x: p.c + 0.1, y: p.r + 0.1, width: 0.8, height: 0.8, rx: 0.2 }));

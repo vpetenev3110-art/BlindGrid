@@ -8,24 +8,29 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=29">
+<link rel="stylesheet" href="index.css?v=31">
+<style>
+  /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
+     поэтому меню не успевает мелькнуть */
+  #loader {
+    position: fixed; inset: 0; z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--tg-theme-bg-color, #1a1828);
+    transition: opacity 0.35s ease;
+  }
+  #loader .loader-spin {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 4px solid rgba(255,255,255,0.14);
+    border-top-color: #7d6fe0;
+    animation: loader-spin 0.8s linear infinite;
+  }
+  #loader.done { opacity: 0; pointer-events: none; }
+  @keyframes loader-spin { to { transform: rotate(360deg); } }
+</style>
 </head>
 <body>
-<div id="loader">
-  <div id="loader-particles"></div>
-  <div id="loader-stage">
-    <span class="load-piece lp1"></span>
-    <span class="load-piece lp2"></span>
-    <span class="load-piece lp3"></span>
-    <span class="load-piece lp4"></span>
-    <span class="load-piece lp5"></span>
-    <span class="load-cross">
-      <svg viewBox="0 0 24 24" width="34" height="34"><line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/><line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg>
-    </span>
-  </div>
-  <div id="loader-word">BLINDGRID</div>
-</div>
-<span id="app-version">v1.2.7.3</span>
+<div id="loader"><div class="loader-spin"></div></div>
+<span id="app-version">v1.2.7.5</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -263,6 +268,6 @@
   </div>
 </div>
 
-<script src="index.js?v=29"></script>
+<script src="index.js?v=31"></script>
 </body>
 </html>
