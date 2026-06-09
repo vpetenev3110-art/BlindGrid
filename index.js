@@ -28,6 +28,18 @@ document.addEventListener('touchmove', function (e) {
   if (e.cancelable) e.preventDefault();
 }, { passive: false });
 
+// Страховка названия в меню: после проявления снимаем анимацию с текста/креста,
+// чтобы при любом сбое они остались видимыми (кубик не трогаем — у него своя анимация).
+function ensureMenuLogoVisible() {
+  document.querySelectorAll('#menu-logo .logo-text, #menu-logo .logo-cross').forEach(function (el) {
+    el.style.animation = 'none';
+  });
+}
+setTimeout(ensureMenuLogoVisible, 1700);
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden) setTimeout(ensureMenuLogoVisible, 120);
+});
+
 // частицы — в форме фигур из морского боя (блоки 1-3 клетки), мягкие, размытые
 // единый набор частиц: считаем позиции один раз и рисуем идентично во всех слоях
 const PARTICLE_GRADS = [
@@ -1035,8 +1047,9 @@ function endGame(winner) {
   const win = winner === 'player';
   // очки: +10 за каждый уцелевший блок твоих кораблей (при победе), при поражении блоков не остаётся → −100
   const remaining = state.player.ships.reduce((a, s) => a + Math.max(0, s.len - s.hits), 0);
+  const combo = Math.round(state.comboXP || 0);   // бонус за комбо — отдельным этапом
   setTimeout(() => {
-    showXpResult(win, remaining, 'sea');
+    showXpResult(win, remaining, 'sea', combo);
     launchConfetti(win);
   }, 600);
 }
@@ -1400,27 +1413,30 @@ function animateXpBarColored(before, target, onDone) {
   if (target > before) {
     void ghost.offsetWidth;
     ghost.classList.add('gain');
-    ghost.style.transition = 'width 0.55s cubic-bezier(.25,.9,.3,1)';
-    fill.style.transition = 'width 0.85s cubic-bezier(.3,.9,.3,1) 0.16s';
+    ghost.style.opacity = '1';
+    ghost.style.transition = 'width 0.6s cubic-bezier(.25,.9,.3,1)';
+    fill.style.transition = 'width 0.95s cubic-bezier(.3,.9,.3,1) 0.22s';
     requestAnimationFrame(() => { ghost.style.width = tf + '%'; fill.style.width = tf + '%'; });
-    setTimeout(() => { ghost.style.transition = 'opacity 0.4s ease'; ghost.style.opacity = '0'; if (onDone) onDone(); }, 1200);
+    setTimeout(() => { ghost.style.transition = 'opacity 0.45s ease'; ghost.style.opacity = '0'; if (onDone) onDone(); }, 1350);
   } else {
     ghost.classList.add('loss');
+    ghost.style.opacity = '1';
     ghost.style.width = bf + '%';
     void ghost.offsetWidth;
-    fill.style.transition = 'width 0.8s cubic-bezier(.3,.9,.3,1)';
+    fill.style.transition = 'width 0.85s cubic-bezier(.3,.9,.3,1)';
     requestAnimationFrame(() => { fill.style.width = tf + '%'; });
-    setTimeout(() => { ghost.style.transition = 'opacity 0.45s ease'; ghost.style.opacity = '0'; if (onDone) onDone(); }, 1050);
+    setTimeout(() => { ghost.style.transition = 'opacity 0.5s ease'; ghost.style.opacity = '0'; if (onDone) onDone(); }, 1150);
   }
 }
 
 function ovGainText(v) { return (v >= 0 ? '+' : '−') + Math.abs(v) + ' XP'; }
 
-// единый экран результата: подсчёт (фрукты/блоки) → перевод в опыт + цветной бар
-function showXpResult(win, count, kind) {
+// единый экран результата: подсчёт (фрукты/блоки) → опыт за комбо → цветной бар
+function showXpResult(win, count, kind, extra) {
+  extra = extra || 0;
   const before = getXP();
   const base = win ? 0 : -100;
-  const gained = base + count * 10;
+  const gained = base + count * 10 + extra;
   const target = Math.max(0, before + gained);
   setXP(target);
 
@@ -1439,7 +1455,7 @@ function showXpResult(win, count, kind) {
   document.getElementById('ov-cat-burst').classList.remove('go');
   document.getElementById('ov-frame').classList.remove('flash');
   document.getElementById('overlay-btn').textContent = 'Ещё раз';
-  if (fruitIcon) fruitIcon.classList.toggle('block', kind === 'sea');
+  if (fruitIcon) { fruitIcon.classList.remove('combo'); fruitIcon.classList.toggle('block', kind === 'sea'); }
   setRankVisuals(rankInfo(before), true);
   setAvatar(document.getElementById('ov-ava'));
   document.getElementById('ov-xp-ghost').style.opacity = '0';
@@ -1450,24 +1466,44 @@ function showXpResult(win, count, kind) {
   gainEl.classList.toggle('minus', running < 0);
   overlay.classList.remove('hidden');
 
+  const haptic = () => { try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {} };
+  const toBar = () => {
+    gainEl.textContent = ovGainText(gained);
+    gainEl.classList.toggle('minus', gained < 0);
+    setTimeout(() => animateXpBarColored(before, target, () => {
+      setTimeout(() => overlay.classList.add('act-show'), 250);
+    }), 300);
+  };
+  // этап 2: опыт за комбо (отдельно, после блоков)
+  const comboPhase = () => {
+    if (extra <= 0) { toBar(); return; }
+    if (fruitIcon) { fruitIcon.classList.remove('block'); fruitIcon.classList.add('combo'); }
+    let cLeft = extra;
+    tallyN.textContent = cLeft;
+    const cstep = () => {
+      if (cLeft <= 0) { toBar(); return; }
+      const d = Math.min(10, cLeft); cLeft -= d; running += d;
+      tallyN.textContent = cLeft;
+      gainEl.textContent = ovGainText(running);
+      gainEl.classList.toggle('minus', running < 0);
+      haptic();
+      setTimeout(cstep, 130);
+    };
+    setTimeout(cstep, 420);
+  };
+
   setTimeout(() => overlay.classList.add('settled'), 1200);
   setTimeout(() => { ovxp.classList.add('show'); gainEl.classList.add('show'); }, 1650);
+  // этап 1: блоки/фрукты
   setTimeout(() => {
     let left = count;
     const step = () => {
-      if (left <= 0) {
-        gainEl.textContent = ovGainText(gained);
-        gainEl.classList.toggle('minus', gained < 0);
-        setTimeout(() => animateXpBarColored(before, target, () => {
-          setTimeout(() => overlay.classList.add('act-show'), 250);
-        }), 300);
-        return;
-      }
+      if (left <= 0) { comboPhase(); return; }
       left--; running += 10;
       tallyN.textContent = left;
       gainEl.textContent = ovGainText(running);
       gainEl.classList.toggle('minus', running < 0);
-      try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+      haptic();
       setTimeout(step, 150);
     };
     step();
