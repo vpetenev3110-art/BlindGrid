@@ -542,17 +542,29 @@
   #menu-logo .logo-cross { color: var(--miss); flex-shrink: 0;
     animation: menu-cross-in 0.8s cubic-bezier(.34,1.3,.64,1) 0.3s both; }
   #menu-logo .logo-text { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 40px; letter-spacing: 2.5px;
-    animation: menu-text-in 0.7s ease-out 0.45s both; }
-  /* как раньше: название проявляется с задержкой, пока кубик проезжает (страховка — в JS) */
-  @keyframes menu-text-in { 0% { opacity: 0; transform: translateX(8px); } 100% { opacity: 1; transform: translateX(0); } }
+    /* лёгкий малозаметный градиент внутри букв */
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--ink), #ffffff 16%) 0%,
+      var(--ink) 48%,
+      color-mix(in srgb, var(--ink), #9a90d6 20%) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: menu-text-in 0.7s ease-out 0.3s both; }
+  /* БЕЗ opacity — текст и крест видны всегда (на проблемных webview анимация с opacity застревала) */
+  @keyframes menu-text-in { 0% { transform: translateX(8px); } 100% { transform: translateX(0); } }
   @keyframes menu-cross-in {
-    0%   { opacity: 0; transform: rotate(-160deg) scale(0.4); }
-    70%  { opacity: 1; transform: rotate(20deg) scale(1.1); }
-    100% { opacity: 1; transform: rotate(0deg) scale(1); }
+    0%   { transform: rotate(-160deg) scale(0.4); }
+    70%  { transform: rotate(20deg) scale(1.1); }
+    100% { transform: rotate(0deg) scale(1); }
   }
   #menu-logo .logo-cube { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
     background: var(--grad-3); box-shadow: 0 1px 8px rgba(255,93,115,0.6);
-    animation: cube-run-big 0.7s cubic-bezier(.4,0,.2,1) both; }
+    animation: menu-cube-in 0.65s cubic-bezier(.3,1.2,.5,1) 0.15s both; }
+  /* кубик заезжает СПРАВА (не пересекает название), без opacity */
+  @keyframes menu-cube-in {
+    0%   { transform: translateX(120px) rotate(45deg) scale(0.5); }
+    100% { transform: translateX(0) rotate(0deg) scale(1); }
+  }
   #menu-tagline {
     margin-top: 14px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
     color: var(--ink-soft); font-weight: 700;
