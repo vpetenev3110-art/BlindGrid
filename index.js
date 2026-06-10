@@ -1241,31 +1241,59 @@ function arsShopEnter() {
   document.getElementById('dock').classList.add('shop-mode');
   const shop = document.getElementById('dock-shop');
   if (!shop._built) {
-    const items = document.getElementById('dshop-items');
-    items.innerHTML = '';
+    const grid = document.getElementById('dshop-grid');
+    grid.innerHTML = '';
     ARS_ORDER.forEach(key => {
       const d = ARS_DEF[key];
-      const row = document.createElement('div');
-      row.className = 'ars-item';
-      row.innerHTML = '<div class="ars-ico">' + d.ico + '</div>'
-        + '<div class="ars-info"><div class="ars-name">' + d.name + '</div><div class="ars-price">' + d.price + ' XP · до ' + d.max + '</div></div>'
-        + '<div class="ars-step"><button type="button" data-k="' + key + '" data-d="-1">−</button>'
-        + '<span class="ars-count" id="ars-n-' + key + '">0</span>'
-        + '<button type="button" data-k="' + key + '" data-d="1">+</button></div>';
-      items.appendChild(row);
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'ars-tile';
+      tile.id = 'ars-tile-' + key;
+      tile.innerHTML = '<span class="t-price">' + d.price + ' XP</span>'
+        + '<span class="t-ico">' + d.ico + '</span>'
+        + '<span class="t-count" id="ars-n-' + key + '">0/' + d.max + '</span>';
+      tile.addEventListener('click', () => arsTileTap(key));
+      grid.appendChild(tile);
     });
-    items.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-      if (+b.dataset.d > 0) arsBuyItem(b.dataset.k); else arsRefundItem(b.dataset.k);
-    }));
-    document.getElementById('dshop-back').addEventListener('click', () => {
-      arsShopExit(true);   // назад к расстановке — всё возвращается
-    });
+    document.getElementById('dshop-reset').addEventListener('click', arsResetAll);
+    document.getElementById('dshop-back').addEventListener('click', () => arsShopExit(true));
     shop._built = true;
   }
   document.getElementById('place-board').classList.add('def-mode');
   setPlayBtnLabel('В бой');
   arsShopSync();
   arsRenderPlaceOverlays();
+}
+// тап по карточке: +1; на максимуме — сброс в 0 (с возвратом XP)
+function arsTileTap(k) {
+  const d = ARS_DEF[k];
+  if (arsBuy[k] >= d.max) {            // полный — обнуляем
+    arsRefundAllOf(k);
+  } else if (getXP() >= d.price) {
+    arsBuyItem(k);
+    return;
+  } else {
+    jsShake(document.getElementById('ars-tile-' + k));   // не хватает XP
+    return;
+  }
+  arsShopSync(); arsRenderPlaceOverlays();
+}
+function arsRefundAllOf(k) {
+  const n = arsBuy[k];
+  if (n <= 0) return;
+  if (k === 'shield') arsDefense.shields.length = 0;
+  if (k === 'mine') arsDefense.mines.length = 0;
+  arsBuy[k] = 0;
+  setXP(getXP() + n * ARS_DEF[k].price);
+}
+function arsResetAll() {
+  if (!arsBuy) return;
+  const back = arsSpent();
+  if (back > 0) setXP(getXP() + back);
+  ARS_ORDER.forEach(k => { arsBuy[k] = 0; });
+  arsDefense.shields.length = 0; arsDefense.mines.length = 0;
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+  arsShopSync(); arsRenderPlaceOverlays();
 }
 function arsShopExit(refund) {
   if (refund && arsBuy) {
@@ -1290,24 +1318,17 @@ function arsBuyItem(k) {
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
   arsShopSync(); arsRenderPlaceOverlays();
 }
-function arsRefundItem(k) {
-  if (arsBuy[k] <= 0) return;
-  if (k === 'shield') arsDefense.shields.pop();
-  if (k === 'mine') arsDefense.mines.pop();
-  arsBuy[k]--;
-  setXP(getXP() + ARS_DEF[k].price);
-  arsShopSync(); arsRenderPlaceOverlays();
-}
 function arsShopSync() {
   document.getElementById('dshop-bal').textContent = getXP() + ' XP';
   const bal = getXP();
   ARS_ORDER.forEach(k => {
     const n = document.getElementById('ars-n-' + k);
-    if (n) n.textContent = arsBuy[k];
-  });
-  document.querySelectorAll('#dshop-items .ars-step button').forEach(b => {
-    const k = b.dataset.k, dd = +b.dataset.d;
-    b.disabled = dd > 0 ? (arsBuy[k] >= ARS_DEF[k].max || bal < ARS_DEF[k].price) : arsBuy[k] <= 0;
+    if (n) n.textContent = arsBuy[k] + '/' + ARS_DEF[k].max;
+    const tile = document.getElementById('ars-tile-' + k);
+    if (tile) {
+      tile.classList.toggle('sel', arsBuy[k] > 0);
+      tile.classList.toggle('poor', arsBuy[k] === 0 && bal < ARS_DEF[k].price);
+    }
   });
 }
 
@@ -1329,7 +1350,7 @@ function arsRenderPlaceOverlays() {
     if (!cell) return;
     const d = document.createElement('div');
     d.className = 'ars-mine draggable';
-    const sz = Math.round(cell.offsetWidth * 0.46);
+    const sz = Math.round(cell.offsetWidth * 0.62);
     d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
     arsBindMineDrag(d, idx);
     boardEl.appendChild(d);
@@ -1415,7 +1436,7 @@ function arsRenderDefOverlays(boardId, shieldTops, mines) {
     if (!cell) return;
     const d = document.createElement('div');
     d.className = 'ars-mine';
-    const sz = Math.round(cell.offsetWidth * 0.5);
+    const sz = Math.round(cell.offsetWidth * 0.62);
     d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
     boardEl.appendChild(d);
   });
