@@ -312,6 +312,10 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
 }
 
 function startPlacement() {
+  arsDefMode = null; arsBuy = null; arsDefense = null;
+  const db = document.getElementById('def-banner'); if (db) db.classList.add('hidden');
+  const pb = document.getElementById('place-board'); if (pb) pb.classList.remove('def-mode');
+  const sh = document.getElementById('ars-shop'); if (sh) sh.classList.add('hidden');
   setGameUIHidden(false);
   state = null;               // сбрасываем прошлый бой (фикс вылета на «Ещё раз»)
   dragInfo = null;
@@ -669,7 +673,18 @@ function startBattle() {
   const playerBoard = freshBoard();
   playerShips.forEach(s => s.cells.forEach(({ r, c }) => playerBoard[r][c].shipId = s.id));
   const enemy = placeFleetAuto();
-  state = { player: { board: playerBoard, ships: playerShips }, enemy, turn: 'player', over: false, aiQueue: [], aiHitsOnShip: [], combo: 0, missStreak: 0, comboXP: 0 };
+  state = { player: { board: playerBoard, ships: playerShips }, enemy, turn: 'player', over: false, aiQueue: [], aiHitsOnShip: [], combo: 0, missStreak: 0, comboXP: 0,
+    ars: null, armed: null, skipPlayer: false, skipEnemy: false, aiKnown: [], aiMoves: 0 };
+  if (lastMode === 'classic' && arsBuy && arsDefense) {
+    state.ars = {
+      player: {
+        shields: arsDefense.shields.map(rTop => ({ rTop, used: false })),
+        mines: arsDefense.mines.map(m => ({ r: m.r, c: m.c, hit: false })),
+        radar: arsBuy.radar, big: arsBuy.big, line: arsBuy.line
+      },
+      enemy: arsAiAutoDefense(arsBuy)
+    };
+  }
   hideCombo();
   showScreen('battle-screen');
   document.getElementById('controls').classList.add('hidden');
@@ -683,6 +698,8 @@ function startBattle() {
   renderBattleBoards();
   renderShipLayer('battle-my-board', state.player.ships);
   updateFleetFills();
+  if (state.ars) { arsRenderMyDefense(); arsRenderPanel(); }
+  else { document.getElementById('ars-panel').classList.add('hidden'); document.getElementById('ars-hint').classList.add('hidden'); }
   turnAngle = 0; turnSide = null; turnLastFlip = 0;   // сброс инерции стрелки
   setTurnArrow('player');
 }
@@ -834,24 +851,22 @@ function buildSunkBridges(boardId, ship) {
   });
 }
 
-function onEnemyCellClick(r, c) {
-  if (!state || state.over || state.turn !== 'player') return;
+// один выстрел по полю ИИ (без передачи хода); 'hit' | 'miss' | 'mine' | 'repeat'
+function shootEnemyCell(r, c) {
   const cell = state.enemy.board[r][c];
-  if (cell.shot) return;
+  if (cell.shot) return 'repeat';
   cell.shot = true;
   const el = getCellEl('enemy-board', r, c);
   spawnRipple(el, 'blue');
   if (cell.shipId !== null) {
     const ship = state.enemy.ships[cell.shipId];
     ship.hits++;
-    if (el) el.classList.add('hit');
-    // КОМБО: попадание увеличивает
+    if (el) { el.classList.add('hit'); el.classList.remove('radar-ship', 'radar-dot'); }
     state.combo = (state.combo || 0) + 1;
     state.missStreak = 0;
     if (state.combo >= 2) {
-      // комбо-опыт: быстрая игра — геометрия (x2=10,x3=20,…); классика — мягко и с потолком
       const cg = (lastMode === 'classic')
-        ? Math.min(30, 5 * (state.combo - 1))           // x2=5, x3=10, … потолок 30
+        ? Math.min(30, 5 * (state.combo - 1))
         : 10 * Math.pow(2, state.combo - 2);
       state.comboXP = (state.comboXP || 0) + cg;
       showCombo(state.combo);
@@ -864,19 +879,31 @@ function onEnemyCellClick(r, c) {
         if (allSunk(state.enemy)) endGame('player');
       }, 450);
     }
-  } else {
-    if (el) el.classList.add('miss');
-    // КОМБО: первый промах не сбивает, но тускнеет; второй подряд — сброс
-    state.missStreak = (state.missStreak || 0) + 1;
-    if (state.missStreak >= 2) {
-      state.combo = 0; hideCombo();
-    } else if (state.combo >= 2) {
-      document.getElementById('combo-tag').classList.add('dim');
-    }
-    state.turn = 'enemy'; setTurnArrow('enemy');
-    document.getElementById('enemy-board').classList.add('locked');
-    setTimeout(aiTurn, 750);
+    return 'hit';
   }
+  // мина противника: взрыв — пропускаешь ход
+  const mine = arsGetMineAt(state.ars && state.ars.enemy, r, c);
+  if (mine) {
+    mine.hit = true;
+    if (el) { el.classList.add('mine-boom'); el.classList.remove('radar-ship', 'radar-dot'); }
+    spawnRipple(el, 'red');
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error'); } catch (e) {}
+    return 'mine';
+  }
+  if (el) { el.classList.add('miss'); el.classList.remove('radar-ship', 'radar-dot'); }
+  state.missStreak = (state.missStreak || 0) + 1;
+  if (state.missStreak >= 2) { state.combo = 0; hideCombo(); }
+  else if (state.combo >= 2) document.getElementById('combo-tag').classList.add('dim');
+  return 'miss';
+}
+function onEnemyCellClick(r, c) {
+  if (!state || state.over || state.turn !== 'player') return;
+  if (state.armed) { arsPlayerUse(r, c); return; }   // выбран арсенал — применяем его
+  if (state.enemy.board[r][c].shot) return;
+  const res = shootEnemyCell(r, c);
+  if (res === 'hit' || res === 'repeat') return;   // попал — ходи снова
+  if (res === 'mine') state.skipPlayer = true;
+  passTurnToEnemy();
 }
 function allSunk(side) { return side.ships.every(s => s.sunk); }
 
@@ -1051,25 +1078,19 @@ function spawnRipple(cellEl, color) {
   setTimeout(() => rip.remove(), 650);
 }
 
-function aiTurn() {
-  if (!state || state.over || state.turn !== 'enemy') return;
-  const target = pickAITarget();
-  if (!target) {
-    // свободных клеток нет — безопасно вернуть ход игроку, не падаем
-    state.turn = 'player'; setTurnArrow('player');
-    document.getElementById('enemy-board').classList.remove('locked');
-    return;
-  }
-  const cell = state.player.board[target.r][target.c];
+// один выстрел ИИ по моему полю (без передачи хода); 'hit' | 'miss' | 'mine' | 'end' | 'repeat'
+function aiShootPlayerCell(r, c) {
+  const cell = state.player.board[r][c];
+  if (cell.shot) return 'repeat';
   cell.shot = true;
-  const el = getCellEl('battle-my-board', target.r, target.c);
+  const el = getCellEl('battle-my-board', r, c);
   spawnRipple(el, 'red');
   if (cell.shipId !== null) {
     const ship = state.player.ships[cell.shipId];
     ship.hits++;
     if (el) el.classList.add('hit');
-    state.aiHitsOnShip.push(target);
-    enqueueAINeighbors(target);
+    state.aiHitsOnShip.push({ r, c });
+    enqueueAINeighbors({ r, c });
     if (ship.hits >= ship.len) {
       ship.sunk = true;
       setTimeout(() => {
@@ -1077,19 +1098,43 @@ function aiTurn() {
         updateFleetFills();
       }, 450);
       state.aiQueue = []; state.aiHitsOnShip = [];
-      if (allSunk(state.player)) { setTimeout(() => endGame('enemy'), 600); return; }
+      if (allSunk(state.player)) { setTimeout(() => endGame('enemy'), 600); return 'end'; }
     }
-    setTimeout(aiTurn, 950);
-  } else {
-    if (el) el.classList.add('miss');
-    state.turn = 'player'; setTurnArrow('player');
-    document.getElementById('enemy-board').classList.remove('locked');
+    return 'hit';
   }
+  // моя мина: ИИ подорвался — пропустит ход
+  const mine = arsGetMineAt(state.ars && state.ars.player, r, c);
+  if (mine) {
+    mine.hit = true;
+    if (el) el.classList.add('mine-boom');
+    spawnRipple(el, 'red');
+    arsRenderMyDefense();
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
+    return 'mine';
+  }
+  if (el) el.classList.add('miss');
+  return 'miss';
+}
+function aiTurn() {
+  if (!state || state.over || state.turn !== 'enemy') return;
+  if (state.ars && aiTryArsenal()) return;   // ИИ может применить арсенал
+  const target = pickAITarget();
+  if (!target) { passTurnToPlayer(); return; }
+  const res = aiShootPlayerCell(target.r, target.c);
+  if (res === 'end') return;
+  if (res === 'hit') { setTimeout(aiTurn, 950); return; }
+  if (res === 'mine') state.skipEnemy = true;
+  passTurnToPlayer();
 }
 
 function pickAITarget() {
   while (state.aiQueue.length > 0) {
     const t = state.aiQueue.shift();
+    if (validAITarget(t.r, t.c)) return t;
+  }
+  // разведанные радаром клетки — в приоритете
+  while (state.aiKnown && state.aiKnown.length > 0) {
+    const t = state.aiKnown.shift();
     if (validAITarget(t.r, t.c)) return t;
   }
   const candidates = [];
@@ -1127,6 +1172,458 @@ function endGame(winner) {
     showXpResult(win, remaining, 'sea', combo);
     launchConfetti(win);
   }, 600);
+}
+
+// ===================== АРСЕНАЛ (только классика) =====================
+// Покупка за XP после расстановки; у ИИ — ровно столько же. Щиты и мины — на своём поле,
+// радар/бомбы — кнопки справа от верхнего поля в бою.
+const ARS_DEF = {
+  shield: { name: 'Защита',        price: 30, max: 3, ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L19 6 V11 C19 16 16 19.5 12 21 C8 19.5 5 16 5 11 V6 Z"/></svg>' },
+  radar:  { name: 'Радар',         price: 80, max: 1, ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/><path d="M12 12 L18 6"/></svg>' },
+  big:    { name: 'Большая бомба', price: 45, max: 2, ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="14" r="6.5"/><path d="M14.5 8.5 L17 6 M17 6 L15.6 4.6 M17 6 L18.4 7.4 M19.5 3 l0.01 0 M21 6 l0.01 0"/></svg>' },
+  line:   { name: 'Бомбы по линии',price: 40, max: 2, ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>' },
+  mine:   { name: 'Мина',          price: 15, max: 5, ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 4 V6.5 M12 17.5 V20 M4 12 H6.5 M17.5 12 H20 M6.6 6.6 L8.2 8.2 M15.8 15.8 L17.4 17.4 M17.4 6.6 L15.8 8.2 M8.2 15.8 L6.6 17.4"/></svg>' }
+};
+const ARS_ORDER = ['shield', 'radar', 'big', 'line', 'mine'];
+let arsBuy = null;       // выбранное в магазине
+let arsDefense = null;   // {shields:[rTop..], mines:[{r,c}]}
+let arsDefMode = null;   // null | 'shield' | 'mine'
+
+function arsShopOpen() {
+  arsBuy = { shield: 0, radar: 0, big: 0, line: 0, mine: 0 };
+  const wrap = document.getElementById('ars-items');
+  wrap.innerHTML = '';
+  ARS_ORDER.forEach(key => {
+    const d = ARS_DEF[key];
+    const row = document.createElement('div');
+    row.className = 'ars-item';
+    row.innerHTML = '<div class="ars-ico">' + d.ico + '</div>'
+      + '<div class="ars-info"><div class="ars-name">' + d.name + '</div><div class="ars-price">' + d.price + ' XP · до ' + d.max + ' шт</div></div>'
+      + '<div class="ars-step"><button type="button" data-k="' + key + '" data-d="-1">−</button>'
+      + '<span class="ars-count" id="ars-n-' + key + '">0</span>'
+      + '<button type="button" data-k="' + key + '" data-d="1">+</button></div>';
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.k, dd = +b.dataset.d;
+    const next = arsBuy[k] + dd;
+    if (next < 0 || next > ARS_DEF[k].max) return;
+    if (dd > 0 && arsTotal() + ARS_DEF[k].price > getXP()) return;   // не хватает XP
+    arsBuy[k] = next;
+    arsShopSync();
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+  }));
+  arsShopSync();
+  document.getElementById('ars-shop').classList.remove('hidden');
+}
+function arsTotal() { return ARS_ORDER.reduce((a, k) => a + arsBuy[k] * ARS_DEF[k].price, 0); }
+function arsShopSync() {
+  document.getElementById('ars-bal').textContent = getXP();
+  document.getElementById('ars-total').textContent = arsTotal();
+  ARS_ORDER.forEach(k => { document.getElementById('ars-n-' + k).textContent = arsBuy[k]; });
+  const bal = getXP();
+  document.querySelectorAll('#ars-items .ars-step button').forEach(b => {
+    const k = b.dataset.k, dd = +b.dataset.d;
+    b.disabled = dd > 0
+      ? (arsBuy[k] >= ARS_DEF[k].max || arsTotal() + ARS_DEF[k].price > bal)
+      : arsBuy[k] <= 0;
+  });
+}
+document.getElementById('ars-skip').addEventListener('click', () => {
+  document.getElementById('ars-shop').classList.add('hidden');
+  arsBuy = null; arsDefense = null;
+  startBattle();
+});
+document.getElementById('ars-buy').addEventListener('click', () => {
+  const total = arsTotal();
+  if (total > getXP()) return;
+  if (total > 0) setXP(getXP() - total);
+  document.getElementById('ars-shop').classList.add('hidden');
+  arsDefense = { shields: [], mines: [] };
+  if (arsBuy.shield > 0 || arsBuy.mine > 0) arsDefStart();
+  else startBattle();
+});
+
+// --- фаза размещения защиты на своём поле (после покупки) ---
+function arsDefStart() {
+  arsDefMode = arsBuy.shield > 0 ? 'shield' : 'mine';
+  document.getElementById('place-board').classList.add('def-mode');
+  document.getElementById('def-banner').classList.remove('hidden');
+  arsDefSync();
+}
+function arsDefLeft() {
+  return arsDefMode === 'shield'
+    ? arsBuy.shield - arsDefense.shields.length
+    : arsBuy.mine - arsDefense.mines.length;
+}
+function arsDefSync() {
+  const t = document.getElementById('def-text');
+  if (arsDefMode === 'shield') t.textContent = 'Коснись поля — поставь защиту (' + arsDefLeft() + ')';
+  else t.textContent = 'Коснись клетки — поставь мину (' + arsDefLeft() + ')';
+  arsRenderDefOverlays('place-board', arsDefense.shields, arsDefense.mines);
+}
+function arsDefDone() {
+  arsDefMode = null;
+  document.getElementById('place-board').classList.remove('def-mode');
+  document.getElementById('def-banner').classList.add('hidden');
+  setTimeout(startBattle, 250);
+}
+function arsDefTap(r, c) {
+  if (!arsDefMode || !arsDefense) return;
+  if (arsDefMode === 'shield') {
+    const rTop = Math.max(0, Math.min(SIZE - 2, r));
+    // две защиты на одни строки нельзя
+    if (arsDefense.shields.some(s => Math.abs(s - rTop) < 2)) { jsShake(document.getElementById('place-board')); return; }
+    arsDefense.shields.push(rTop);
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+    if (arsDefense.shields.length >= arsBuy.shield) arsDefMode = arsBuy.mine > 0 ? 'mine' : null;
+  } else {
+    // мина — по принципу кораблей: не на корабле/мине и не вплотную к ним
+    if (!arsMineCellOk(r, c)) { jsShake(document.getElementById('place-board')); return; }
+    arsDefense.mines.push({ r, c });
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
+    if (arsDefense.mines.length >= arsBuy.mine) arsDefMode = null;
+  }
+  if (arsDefMode === null) { arsDefSync(); arsDefDone(); }
+  else arsDefSync();
+}
+function arsMineCellOk(r, c) {
+  if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return false;
+  const shipCells = [];
+  placement.pieces.forEach(p => { if (p.placed) p.cells.forEach(q => shipCells.push(q)); });
+  const all = shipCells.concat(arsDefense.mines);
+  for (const q of all)
+    if (Math.abs(q.r - r) <= 1 && Math.abs(q.c - c) <= 1) return false;
+  return true;
+}
+document.getElementById('def-reset').addEventListener('click', () => {
+  if (!arsDefense) return;
+  arsDefense.shields = []; arsDefense.mines = [];
+  arsDefMode = arsBuy.shield > 0 ? 'shield' : 'mine';
+  arsDefSync();
+});
+(function () {
+  const board = document.getElementById('place-board');
+  let lastTap = 0;
+  const handle = (x, y) => {
+    if (!arsDefMode) return;
+    const now = Date.now();
+    if (now - lastTap < 250) return;   // защита от двойного click+touch
+    lastTap = now;
+    const cell = boardCellFromPoint(x, y);
+    if (cell) arsDefTap(cell.r, cell.c);
+  };
+  board.addEventListener('click', e => handle(e.clientX, e.clientY));
+  board.addEventListener('touchend', e => { const t = e.changedTouches[0]; handle(t.clientX, t.clientY); }, { passive: true });
+})();
+
+// --- оверлеи: полосы защиты, мины, скан ---
+function arsBandRect(boardEl, rTop) {
+  const c1 = boardEl.querySelector('.cell[data-r="' + rTop + '"][data-c="0"]');
+  const c2 = boardEl.querySelector('.cell[data-r="' + (rTop + 1) + '"][data-c="' + (SIZE - 1) + '"]');
+  if (!c1 || !c2) return null;
+  return { left: c1.offsetLeft - 2, top: c1.offsetTop - 2, width: c2.offsetLeft + c2.offsetWidth - c1.offsetLeft + 4, height: c2.offsetTop + c2.offsetHeight - c1.offsetTop + 4 };
+}
+function arsRenderDefOverlays(boardId, shieldTops, mines) {
+  const boardEl = document.getElementById(boardId);
+  boardEl.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
+  (shieldTops || []).forEach(s => {
+    const rTop = (typeof s === 'number') ? s : s.rTop;
+    if (typeof s === 'object' && s.used) return;   // потраченный щит исчезает
+    const rc = arsBandRect(boardEl, rTop); if (!rc) return;
+    const d = document.createElement('div');
+    d.className = 'ars-band';
+    d.style.cssText = 'left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px';
+    boardEl.appendChild(d);
+  });
+  (mines || []).forEach(m => {
+    if (m.hit) return;
+    const cell = boardEl.querySelector('.cell[data-r="' + m.r + '"][data-c="' + m.c + '"]');
+    if (!cell) return;
+    const d = document.createElement('div');
+    d.className = 'ars-mine';
+    const sz = Math.round(cell.offsetWidth * 0.5);
+    d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
+    boardEl.appendChild(d);
+  });
+}
+function arsFlashShield(boardId, shield) {
+  shield.used = true;
+  const boardEl = document.getElementById(boardId);
+  const rc = arsBandRect(boardEl, shield.rTop); if (!rc) return;
+  const d = document.createElement('div');
+  d.className = 'ars-band flash';
+  d.style.cssText = 'left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px;opacity:1;transition:opacity 0.5s ease 0.7s';
+  boardEl.appendChild(d);
+  jsShake(boardEl);
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
+  setTimeout(() => { d.style.opacity = '0'; }, 60);
+  setTimeout(() => d.remove(), 1400);
+  if (boardId === 'battle-my-board') arsRenderMyDefense();
+}
+function arsScanFlash(boardId, r0, c0) {
+  const boardEl = document.getElementById(boardId);
+  const c1 = boardEl.querySelector('.cell[data-r="' + r0 + '"][data-c="' + c0 + '"]');
+  const c2 = boardEl.querySelector('.cell[data-r="' + (r0 + 2) + '"][data-c="' + (c0 + 2) + '"]');
+  if (!c1 || !c2) return;
+  const d = document.createElement('div');
+  d.className = 'ars-scan';
+  d.style.cssText = 'left:' + (c1.offsetLeft - 2) + 'px;top:' + (c1.offsetTop - 2) + 'px;width:'
+    + (c2.offsetLeft + c2.offsetWidth - c1.offsetLeft + 4) + 'px;height:' + (c2.offsetTop + c2.offsetHeight - c1.offsetTop + 4) + 'px';
+  boardEl.appendChild(d);
+  requestAnimationFrame(() => d.classList.add('on'));
+  setTimeout(() => d.classList.remove('on'), 1100);
+  setTimeout(() => d.remove(), 1600);
+}
+function arsRenderMyDefense() {
+  if (!state || !state.ars) return;
+  arsRenderDefOverlays('battle-my-board', state.ars.player.shields, state.ars.player.mines);
+}
+function showSkipDim(boardId, done) {
+  const boardEl = document.getElementById(boardId);
+  const d = document.createElement('div');
+  d.className = 'skip-dim';
+  d.textContent = 'пропуск хода';
+  boardEl.appendChild(d);
+  requestAnimationFrame(() => d.classList.add('on'));
+  setTimeout(() => d.classList.remove('on'), 1150);
+  setTimeout(() => { d.remove(); if (done) done(); }, 1500);
+}
+
+// --- помощники боя ---
+function arsGetMineAt(side, r, c) {
+  if (!side || !side.mines) return null;
+  return side.mines.find(m => !m.hit && m.r === r && m.c === c) || null;
+}
+function arsShieldFor(side, rows) {
+  if (!side || !side.shields) return null;
+  return side.shields.find(s => !s.used && rows.some(r => r === s.rTop || r === s.rTop + 1)) || null;
+}
+function arsZoneRows(r0) { return [r0, r0 + 1, r0 + 2]; }
+function arsClampCenter(v) { return Math.max(1, Math.min(SIZE - 2, v)); }
+
+// --- панель арсенала игрока в бою ---
+function arsRenderPanel() {
+  const panel = document.getElementById('ars-panel');
+  const A = state && state.ars ? state.ars.player : null;
+  if (!A || (A.radar + A.big + A.line) <= 0) {
+    panel.classList.add('hidden');
+    document.getElementById('ars-hint').classList.add('hidden');
+    return;
+  }
+  if (!panel._built) {
+    panel.innerHTML = '';
+    ['radar', 'big', 'line'].forEach(k => {
+      const b = document.createElement('button');
+      b.className = 'ars-btn'; b.id = 'ars-btn-' + k; b.type = 'button';
+      b.innerHTML = ARS_DEF[k].ico + '<span class="ars-badge" id="ars-bdg-' + k + '"></span>';
+      b.addEventListener('click', () => {
+        if (!state || state.over || state.turn !== 'player') return;
+        state.armed = (state.armed === k) ? null : k;
+        arsSyncPanel();
+      });
+      panel.appendChild(b);
+    });
+    panel._built = true;
+  }
+  panel.classList.remove('hidden');
+  arsSyncPanel();
+}
+function arsSyncPanel() {
+  const A = state && state.ars ? state.ars.player : null;
+  if (!A) return;
+  ['radar', 'big', 'line'].forEach(k => {
+    const b = document.getElementById('ars-btn-' + k), bd = document.getElementById('ars-bdg-' + k);
+    if (!b) return;
+    bd.textContent = A[k];
+    b.classList.toggle('depleted', A[k] <= 0);
+    b.classList.toggle('armed', state.armed === k);
+    if (A[k] <= 0 && state.armed === k) state.armed = null;
+  });
+  const hint = document.getElementById('ars-hint');
+  if (state.armed === 'radar') { hint.textContent = 'Радар: тапни центр зоны 3×3'; hint.classList.remove('hidden'); }
+  else if (state.armed === 'big') { hint.textContent = 'Бомба: тапни центр зоны 3×3'; hint.classList.remove('hidden'); }
+  else if (state.armed === 'line') { hint.textContent = 'Залп: тапни строку'; hint.classList.remove('hidden'); }
+  else hint.classList.add('hidden');
+}
+
+// --- применение оружия игроком ---
+function arsPlayerUse(r, c) {
+  const A = state.ars && state.ars.player;
+  if (!A) { state.armed = null; return; }
+  const kind = state.armed;
+  state.armed = null;
+  if (kind === 'radar' && A.radar > 0) {
+    A.radar--;
+    const r0 = arsClampCenter(r) - 1, c0 = arsClampCenter(c) - 1;
+    const sh = arsShieldFor(state.ars.enemy, arsZoneRows(r0));
+    arsSyncPanel();
+    if (sh) { arsFlashShield('enemy-board', sh); return; }    // щит сжёг радар; ход остаётся
+    arsScanFlash('enemy-board', r0, c0);
+    for (let rr = r0; rr <= r0 + 2; rr++) for (let cc = c0; cc <= c0 + 2; cc++) {
+      const cell = state.enemy.board[rr][cc];
+      if (cell.shot) continue;
+      const el = getCellEl('enemy-board', rr, cc);
+      if (!el) continue;
+      const occupied = cell.shipId !== null || !!arsGetMineAt(state.ars.enemy, rr, cc);
+      el.classList.add(occupied ? 'radar-ship' : 'radar-dot');   // силуэт, не раскрывая корабль
+    }
+    return;   // радар не тратит ход
+  }
+  if (kind === 'big' && A.big > 0) {
+    A.big--; arsSyncPanel();
+    const r0 = arsClampCenter(r) - 1, c0 = arsClampCenter(c) - 1;
+    const sh = arsShieldFor(state.ars.enemy, arsZoneRows(r0));
+    if (sh) { arsFlashShield('enemy-board', sh); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 900); return; }
+    const pool = [];
+    for (let rr = r0; rr <= r0 + 2; rr++) for (let cc = c0; cc <= c0 + 2; cc++)
+      if (!state.enemy.board[rr][cc].shot) pool.push({ r: rr, c: cc });
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const targets = pool.slice(0, 3);
+    arsVolley(targets, 0, false);
+    return;
+  }
+  if (kind === 'line' && A.line > 0) {
+    A.line--; arsSyncPanel();
+    const sh = arsShieldFor(state.ars.enemy, [r]);
+    if (sh) { arsFlashShield('enemy-board', sh); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 900); return; }
+    const targets = [];
+    for (let cc = 0; cc < SIZE; cc++) if (!state.enemy.board[r][cc].shot) targets.push({ r, c: cc });
+    arsVolley(targets, 0, true);
+    return;
+  }
+  arsSyncPanel();
+}
+// последовательный залп по полю ИИ; stopOnHit — линия останавливается о корабль
+function arsVolley(targets, i, stopOnHit) {
+  if (state.over) return;
+  if (i >= targets.length) { if (!state.over) passTurnToEnemy(); return; }
+  const t = targets[i];
+  const res = shootEnemyCell(t.r, t.c);
+  if (res === 'mine') { state.skipPlayer = true; setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 650); return; }
+  if (res === 'hit' && stopOnHit) { setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 650); return; }
+  setTimeout(() => arsVolley(targets, i + 1, stopOnHit), stopOnHit ? 150 : 260);
+}
+
+// --- арсенал ИИ ---
+function aiTryArsenal() {
+  const A = state.ars && state.ars.enemy;
+  if (!A) return false;
+  state.aiMoves = (state.aiMoves || 0) + 1;
+  if (A.radar > 0 && state.aiMoves >= 2 && Math.random() < 0.6) { aiUseRadar(); return true; }
+  if (A.line > 0 && Math.random() < 0.2) { aiUseLine(); return true; }
+  if (A.big > 0 && Math.random() < 0.25) { aiUseBig(); return true; }
+  return false;
+}
+function aiZonePick() {
+  // зона с максимумом непрострелянных клеток
+  let best = null, bv = -1;
+  for (let t = 0; t < 14; t++) {
+    const r0 = 1 + Math.floor(Math.random() * (SIZE - 2)) - 1, c0 = 1 + Math.floor(Math.random() * (SIZE - 2)) - 1;
+    const rr0 = Math.max(0, Math.min(SIZE - 3, r0)), cc0 = Math.max(0, Math.min(SIZE - 3, c0));
+    let v = 0;
+    for (let rr = rr0; rr <= rr0 + 2; rr++) for (let cc = cc0; cc <= cc0 + 2; cc++) if (!state.player.board[rr][cc].shot) v++;
+    if (v > bv) { bv = v; best = { r0: rr0, c0: cc0 }; }
+  }
+  return best;
+}
+function aiUseRadar() {
+  const A = state.ars.enemy; A.radar--;
+  const z = aiZonePick();
+  const sh = arsShieldFor(state.ars.player, arsZoneRows(z.r0));
+  if (sh) { arsFlashShield('battle-my-board', sh); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 950); return; }
+  arsScanFlash('battle-my-board', z.r0, z.c0);
+  state.aiKnown = state.aiKnown || [];
+  for (let rr = z.r0; rr <= z.r0 + 2; rr++) for (let cc = z.c0; cc <= z.c0 + 2; cc++) {
+    const cell = state.player.board[rr][cc];
+    if (!cell.shot && cell.shipId !== null) state.aiKnown.push({ r: rr, c: cc });
+  }
+  setTimeout(() => { if (!state.over && state.turn === 'enemy') aiTurn(); }, 1100);   // радар не тратит ход
+}
+function aiUseBig() {
+  const A = state.ars.enemy; A.big--;
+  const z = aiZonePick();
+  const sh = arsShieldFor(state.ars.player, arsZoneRows(z.r0));
+  if (sh) { arsFlashShield('battle-my-board', sh); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 950); return; }
+  const pool = [];
+  for (let rr = z.r0; rr <= z.r0 + 2; rr++) for (let cc = z.c0; cc <= z.c0 + 2; cc++)
+    if (!state.player.board[rr][cc].shot) pool.push({ r: rr, c: cc });
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  aiVolley(pool.slice(0, 3), 0, false);
+}
+function aiUseLine() {
+  const A = state.ars.enemy; A.line--;
+  let bestR = 0, bv = -1;
+  for (let r = 0; r < SIZE; r++) {
+    let v = 0; for (let c = 0; c < SIZE; c++) if (!state.player.board[r][c].shot) v++;
+    if (v > bv) { bv = v; bestR = r; }
+  }
+  const sh = arsShieldFor(state.ars.player, [bestR]);
+  if (sh) { arsFlashShield('battle-my-board', sh); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 950); return; }
+  const targets = [];
+  for (let c = 0; c < SIZE; c++) if (!state.player.board[bestR][c].shot) targets.push({ r: bestR, c });
+  aiVolley(targets, 0, true);
+}
+function aiVolley(targets, i, stopOnHit) {
+  if (!state || state.over) return;
+  if (i >= targets.length) { passTurnToPlayer(); return; }
+  const t = targets[i];
+  const res = aiShootPlayerCell(t.r, t.c);
+  if (res === 'end') return;
+  if (res === 'mine') { state.skipEnemy = true; setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 650); return; }
+  if (res === 'hit' && stopOnHit) { setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 650); return; }
+  setTimeout(() => aiVolley(targets, i + 1, stopOnHit), stopOnHit ? 150 : 280);
+}
+function arsAiAutoDefense(counts) {
+  // ИИ ставит щиты и мины случайно по тем же правилам
+  const shields = [];
+  let guard = 0;
+  while (shields.length < counts.shield && guard++ < 120) {
+    const rTop = Math.floor(Math.random() * (SIZE - 1));
+    if (!shields.some(s => Math.abs(s - rTop) < 2)) shields.push(rTop);
+  }
+  const mines = [];
+  guard = 0;
+  const shipCells = [];
+  state.enemy.ships.forEach(s => s.cells.forEach(q => shipCells.push(q)));
+  while (mines.length < counts.mine && guard++ < 400) {
+    const r = Math.floor(Math.random() * SIZE), c = Math.floor(Math.random() * SIZE);
+    const all = shipCells.concat(mines);
+    let ok = true;
+    for (const q of all) if (Math.abs(q.r - r) <= 1 && Math.abs(q.c - c) <= 1) { ok = false; break; }
+    if (ok) mines.push({ r, c });
+  }
+  return {
+    shields: shields.map(rTop => ({ rTop, used: false })),
+    mines: mines.map(m => ({ r: m.r, c: m.c, hit: false })),
+    radar: counts.radar, big: counts.big, line: counts.line
+  };
+}
+
+// --- передача хода с учётом пропусков (мины) ---
+function passTurnToEnemy() {
+  if (!state || state.over) return;
+  state.turn = 'enemy'; setTurnArrow('enemy');
+  document.getElementById('enemy-board').classList.add('locked');
+  setTimeout(() => {
+    if (!state || state.over) return;
+    if (state.skipEnemy) {
+      state.skipEnemy = false;
+      showSkipDim('enemy-board', () => { if (state && !state.over) passTurnToPlayer(); });
+    } else aiTurn();
+  }, 750);
+}
+function passTurnToPlayer() {
+  if (!state || state.over) return;
+  if (state.skipPlayer) {
+    state.skipPlayer = false;
+    showSkipDim('battle-my-board', () => {
+      if (state && !state.over) setTimeout(aiTurn, 350);
+    });
+    return;   // ход остаётся у ИИ
+  }
+  state.turn = 'player'; setTurnArrow('player');
+  document.getElementById('enemy-board').classList.remove('locked');
 }
 
 function launchConfetti(win) {
@@ -1193,9 +1690,12 @@ document.getElementById('overlay-back').addEventListener('click', () => {
 });
 document.getElementById('play-btn').addEventListener('click', () => {
   if (!placement) return;
+  if (arsDefMode) return;   // идёт размещение защиты
   const allPlaced = placement.pieces.every(p => p.placed);
   const anyBad = placement.pieces.some(p => p.placed && p.bad);
   if (!allPlaced || anyBad) return;
+  if (lastMode === 'classic') { arsShopOpen(); return; }   // классика — сначала арсенал
+  arsBuy = null; arsDefense = null;
   startBattle();
 });
 

@@ -1099,3 +1099,173 @@
     10%  { opacity: 1; }
     100% { transform: translateY(-115vh) translateX(var(--drift,0px)) rotate(calc(var(--rot,0deg) + 540deg)); opacity: 0.9; }
   }
+
+  /* ===== АРСЕНАЛ (классика морского боя) ===== */
+  #ars-shop {
+    position: fixed; inset: 0; z-index: 72;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(10, 8, 20, 0.6);
+    backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+    opacity: 1; transition: opacity 0.3s ease;
+  }
+  #ars-shop.hidden { opacity: 0; pointer-events: none; }
+  .ars-card {
+    width: min(92vw, 380px); box-sizing: border-box;
+    background: var(--panel-bg, rgba(255,255,255,0.55));
+    border-radius: 18px; padding: 16px 16px 14px;
+    box-shadow: 0 18px 50px -18px rgba(8,6,16,0.7), inset 0 0 0 1px rgba(255,255,255,0.07);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transform: translateY(8px); transition: transform 0.3s cubic-bezier(.25,.9,.3,1);
+  }
+  #ars-shop:not(.hidden) .ars-card { transform: translateY(0); }
+  .ars-title { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 20px; color: var(--ink); text-align: center; }
+  .ars-balance { text-align: center; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px; color: var(--ink-soft, #8a84a8); margin: 3px 0 10px; }
+  .ars-balance b { color: var(--ink); }
+  .ars-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 6px; border-radius: 12px;
+  }
+  .ars-item + .ars-item { margin-top: 2px; }
+  .ars-ico {
+    width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--btn-soft-bg); color: var(--ink);
+  }
+  .ars-ico svg { width: 22px; height: 22px; }
+  .ars-info { flex: 1; min-width: 0; text-align: left; }
+  .ars-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; color: var(--ink); }
+  .ars-price { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 11px; color: var(--ink-soft, #8a84a8); }
+  .ars-step { display: flex; align-items: center; gap: 8px; }
+  .ars-step button {
+    width: 30px; height: 30px; border-radius: 10px; border: none; cursor: pointer;
+    background: var(--btn-soft-bg); color: var(--ink);
+    font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 17px; line-height: 1;
+    transition: transform 0.12s ease, opacity 0.2s ease, background 0.2s ease;
+  }
+  .ars-step button:active { transform: scale(0.92); }
+  .ars-step button:disabled { opacity: 0.32; }
+  .ars-count { min-width: 16px; text-align: center; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: var(--ink); }
+  .ars-total { text-align: center; margin: 10px 0 12px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; color: var(--ink-soft, #8a84a8); }
+  .ars-total b { color: var(--ink); }
+  .ars-actions { display: flex; gap: 10px; }
+  .ars-actions button {
+    flex: 1; border: none; cursor: pointer; border-radius: 13px; padding: 12px 0;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: 0.4px;
+    transition: transform 0.12s ease, opacity 0.2s ease;
+  }
+  .ars-actions button:active { transform: scale(0.97); }
+  #ars-skip { background: var(--btn-soft-bg); color: var(--ink); }
+  #ars-buy { background: linear-gradient(135deg, #3fc4b0, #2fa9c9); color: #fff; box-shadow: 0 8px 18px -8px rgba(47,169,201,0.55); }
+  #ars-buy:disabled { opacity: 0.45; box-shadow: none; }
+
+  /* баннер фазы размещения защиты */
+  #def-banner {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin: 0 auto 8px; max-width: var(--board-w, 320px);
+    padding: 8px 12px; border-radius: 12px;
+    background: rgba(255, 93, 115, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 93, 115, 0.3);
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px; color: var(--ink);
+    transition: opacity 0.3s ease;
+  }
+  #def-banner.hidden { display: none; }
+  #def-reset {
+    border: none; background: none; cursor: pointer; padding: 2px 4px;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 11px;
+    color: var(--miss); text-decoration: underline;
+  }
+
+  /* полосы защиты и мины на полях */
+  .ars-band {
+    position: absolute; z-index: 4; pointer-events: none; border-radius: 9px;
+    background: rgba(255, 71, 87, 0.22);
+    box-shadow: inset 0 0 0 1.5px rgba(255, 71, 87, 0.55);
+  }
+  .ars-band.flash {
+    background: rgba(255, 71, 87, 0.5);
+    box-shadow: inset 0 0 0 2px rgba(255, 71, 87, 0.95), 0 0 18px rgba(255, 71, 87, 0.6);
+  }
+  .ars-mine {
+    position: absolute; z-index: 4; pointer-events: none; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #6b6485, #34304a);
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.25), 0 0 6px rgba(52,48,74,0.5);
+  }
+  .ars-mine::after {
+    content: ''; position: absolute; inset: 28%;
+    border-radius: 50%; background: rgba(255, 93, 115, 0.85);
+  }
+  .cell.mine-boom { background: #2c2438 !important; }
+  .cell.mine-boom::after {
+    content: '✸'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #ff5d73; font-size: 15px;
+  }
+  /* радар-разведка на поле противника */
+  .cell.radar-ship::after {
+    content: ''; position: absolute; inset: 22%;
+    border-radius: 5px; background: rgba(70, 64, 96, 0.85);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+  }
+  .cell.radar-dot::after {
+    content: ''; position: absolute; inset: 42%;
+    border-radius: 50%; background: rgba(120, 112, 150, 0.35);
+  }
+  .ars-scan {
+    position: absolute; z-index: 5; pointer-events: none; border-radius: 10px;
+    box-shadow: inset 0 0 0 2px rgba(79, 202, 196, 0.85), 0 0 16px rgba(79, 202, 196, 0.45);
+    opacity: 0; transition: opacity 0.35s ease;
+  }
+  .ars-scan.on { opacity: 1; }
+  /* затемнение поля при пропуске хода */
+  .skip-dim {
+    position: absolute; inset: 0; z-index: 6; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(12, 10, 22, 0.62);
+    backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px);
+    color: #efeaff; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: 0.6px;
+    opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+  }
+  .skip-dim.on { opacity: 1; }
+
+  /* панель арсенала в бою — справа от верхнего поля */
+  .board-section-mini { position: relative; }
+  #ars-panel {
+    position: absolute; right: 2px; top: 26px; z-index: 8;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #ars-panel.hidden { display: none; }
+  .ars-btn {
+    position: relative; width: 44px; height: 44px; border-radius: 13px; border: none; cursor: pointer;
+    background: var(--panel-bg, rgba(255,255,255,0.5)); color: var(--ink);
+    box-shadow: 0 6px 16px -10px rgba(52,48,74,0.5), inset 0 0 0 1px rgba(255,255,255,0.08);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.12s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+  }
+  .ars-btn svg { width: 22px; height: 22px; }
+  .ars-btn:active { transform: scale(0.93); }
+  .ars-btn.armed {
+    box-shadow: 0 0 0 2px #3fc4b0, 0 0 16px rgba(63,196,176,0.55);
+    color: #2fa99a;
+  }
+  .ars-btn.depleted { opacity: 0.32; pointer-events: none; }
+  .ars-badge {
+    position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px;
+    border-radius: 999px; padding: 0 4px; box-sizing: border-box;
+    background: #ff5d8f; color: #fff;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10.5px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(255,93,143,0.5);
+  }
+  #ars-hint {
+    position: absolute; right: 2px; top: 188px; z-index: 8;
+    max-width: 86px; padding: 6px 8px; border-radius: 10px;
+    background: var(--panel-bg, rgba(255,255,255,0.5));
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10px; line-height: 1.3;
+    color: var(--ink); text-align: center;
+    transition: opacity 0.25s ease;
+  }
+  #ars-hint.hidden { opacity: 0; }
+  /* фаза размещения защиты: корабли не перетаскиваются */
+  #place-board.def-mode .ship-piece { pointer-events: none; }
+  #place-board.def-mode { cursor: crosshair; }

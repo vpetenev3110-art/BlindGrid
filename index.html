@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=48">
+<link rel="stylesheet" href="index.css?v=49">
 <style>
   /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
      поэтому меню не успевает мелькнуть */
@@ -34,7 +34,7 @@
 </head>
 <body>
 <div id="loader"><div class="loader-spin"></div></div>
-<span id="app-version">v1.4.0.1</span>
+<span id="app-version">v1.5.0.0</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -47,6 +47,10 @@
       <div class="board-label">
         <span>твоё поле</span>
         <span class="fleet-bar"><span class="fill" id="place-fill"></span></span>
+      </div>
+      <div id="def-banner" class="hidden">
+        <span id="def-text"></span>
+        <button id="def-reset" type="button">сбросить</button>
       </div>
       <div class="grid" id="place-board"></div>
     </div>
@@ -68,6 +72,8 @@
         <span class="fleet-bar"><span class="fill" id="my-fill"></span></span>
       </div>
       <div class="grid" id="battle-my-board"></div>
+      <div id="ars-panel" class="hidden"></div>
+      <div id="ars-hint" class="hidden"></div>
     </div>
     <div id="turn-zone">
       <div id="turn-arrow" class="down">
@@ -262,6 +268,19 @@
     </div>
   </div>
 
+  <div id="ars-shop" class="hidden">
+    <div class="ars-card">
+      <div class="ars-title">Арсенал</div>
+      <div class="ars-balance">Баланс: <b id="ars-bal">0</b> XP</div>
+      <div id="ars-items"></div>
+      <div class="ars-total">Итого: <b id="ars-total">0</b> XP</div>
+      <div class="ars-actions">
+        <button id="ars-skip" type="button">Без арсенала</button>
+        <button id="ars-buy" type="button">В бой</button>
+      </div>
+    </div>
+  </div>
+
   <div id="arena-screen" class="hidden">
     <div id="arena-particles"></div>
     <div class="mode-topbar">
@@ -299,6 +318,6 @@
   </div>
 </div>
 
-<script src="index.js?v=48"></script>
+<script src="index.js?v=49"></script>
 </body>
 </html>
