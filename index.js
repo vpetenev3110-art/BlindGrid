@@ -315,7 +315,7 @@ function startPlacement() {
   arsBuy = null; arsDefense = null; arsShopPhase = false;
   const dk = document.getElementById('dock'); if (dk) dk.classList.remove('shop-mode');
   const pb = document.getElementById('place-board'); if (pb) pb.classList.remove('def-mode');
-  setTimeout(() => setPlayBtnLabel(lastMode === 'classic' ? 'Далее' : 'Играть'), 0);
+  setTimeout(() => setPlayBtnLabel('Далее'), 0);
   setGameUIHidden(false);
   state = null;               // сбрасываем прошлый бой (фикс вылета на «Ещё раз»)
   dragInfo = null;
@@ -668,6 +668,39 @@ function resetWithAnimation() {
   setTimeout(startPlacement, 420);
 }
 
+// отсчёт перед боем: 3-2-1 → БОЙ! (JS-транзишены)
+function battleCountdown(done) {
+  const screen = document.getElementById('battle-screen');
+  if (!screen) { done(); return; }
+  const dim = document.createElement('div');
+  dim.className = 'battle-cd';
+  const num = document.createElement('div');
+  num.className = 'battle-cd-n';
+  dim.appendChild(num);
+  screen.appendChild(dim);
+  requestAnimationFrame(() => dim.classList.add('on'));
+  const seq = ['3', '2', '1', 'БОЙ!'];
+  let i = 0;
+  const show = () => {
+    num.textContent = seq[i];
+    num.classList.toggle('go', seq[i] === 'БОЙ!');
+    num.style.transition = 'none';
+    num.style.opacity = '0';
+    num.style.transform = 'scale(1.6)';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      num.style.transition = 'opacity 0.18s ease, transform 0.5s cubic-bezier(.2,.9,.3,1)';
+      num.style.opacity = '1';
+      num.style.transform = 'scale(1)';
+    }));
+    i++;
+    if (i < seq.length) setTimeout(show, 700);
+    else setTimeout(() => {
+      dim.classList.remove('on');
+      setTimeout(() => { dim.remove(); done(); }, 320);
+    }, 620);
+  };
+  show();
+}
 function startBattle() {
   const playerShips = placement.pieces.map(p => ({ id: p.id, len: p.len, cells: p.cells, hits: 0, sunk: false }));
   const playerBoard = freshBoard();
@@ -675,7 +708,7 @@ function startBattle() {
   const enemy = placeFleetAuto();
   state = { player: { board: playerBoard, ships: playerShips }, enemy, turn: 'player', over: false, aiQueue: [], aiHitsOnShip: [], combo: 0, missStreak: 0, comboXP: 0,
     ars: null, armed: null, skipPlayer: false, skipEnemy: false, aiKnown: [], aiMoves: 0 };
-  if (lastMode === 'classic' && arsBuy && arsDefense) {
+  if (arsBuy && arsDefense) {   // арсенал в обоих режимах
     state.ars = {
       player: {
         shields: arsDefense.shields.map(rTop => ({ rTop, used: false })),
@@ -702,6 +735,8 @@ function startBattle() {
   else { document.getElementById('ars-panel').classList.add('hidden'); document.getElementById('ars-hint').classList.add('hidden'); }
   turnAngle = 0; turnSide = null; turnLastFlip = 0;   // сброс инерции стрелки
   setTurnArrow('player');
+  state.cd = true;                      // отсчёт: ввод заблокирован
+  battleCountdown(() => { if (state) state.cd = false; });
 }
 function renderBattleBoards() {
   const myBoard = document.getElementById('battle-my-board');
@@ -901,7 +936,7 @@ function shootEnemyCell(r, c) {
   return 'miss';
 }
 function onEnemyCellClick(r, c) {
-  if (!state || state.over || state.turn !== 'player') return;
+  if (!state || state.over || state.cd || state.turn !== 'player') return;
   if (state._wfire && Date.now() - state._wfire < 420) return;   // клик-эхо после тач-выстрела
   if (state.armed) { state._wfire = Date.now(); arsPlayerUse(r, c); return; }   // выбран арсенал — применяем
   if (state.enemy.board[r][c].shot) return;
@@ -1191,6 +1226,20 @@ const ARS_DEF = {
   mine:   { name: 'Мина',          price: 15, max: 5, ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 4 V6.5 M12 17.5 V20 M4 12 H6.5 M17.5 12 H20 M6.6 6.6 L8.2 8.2 M15.8 15.8 L17.4 17.4 M17.4 6.6 L15.8 8.2 M8.2 15.8 L6.6 17.4"/></svg>' }
 };
 const ARS_ORDER = ['shield', 'radar', 'big', 'line', 'mine'];
+// быстрый режим: всё вдвое меньше (в меньшую сторону), без радара
+const ARS_DEF_FAST = {
+  shield: { price: 15, max: 1 },
+  big: { price: 22, max: 1 },
+  line: { price: 20, max: 1 },
+  mine: { price: 7, max: 2 }
+};
+function ARSD(k) {
+  const d = ARS_DEF[k];
+  if (lastMode !== 'fast') return d;
+  const f = ARS_DEF_FAST[k];
+  return f ? Object.assign({}, d, f) : d;
+}
+function ARSO() { return lastMode === 'fast' ? ARS_ORDER.filter(k => k !== 'radar') : ARS_ORDER; }
 let arsBuy = null;       // купленное (счётчики)
 let arsDefense = null;   // {shields:[rTop..], mines:[{r,c}]} — размещение на своём поле
 let arsShopPhase = false;
@@ -1202,7 +1251,7 @@ function setPlayBtnLabel(t) {
   if (node) node.nodeValue = t + ' ';                                  // меняем только текст — svg не трогаем, кнопка не мигает
   else b.insertBefore(document.createTextNode(t + ' '), b.firstChild);
 }
-function arsSpent() { return ARS_ORDER.reduce((a, k) => a + (arsBuy ? arsBuy[k] : 0) * ARS_DEF[k].price, 0); }
+function arsSpent() { return ARSO().reduce((a, k) => a + (arsBuy ? arsBuy[k] : 0) * ARSD(k).price, 0); }
 function arsShipCells() {
   const cells = [];
   if (placement) placement.pieces.forEach(p => { if (p.placed) p.cells.forEach(q => cells.push(q)); });
@@ -1276,11 +1325,12 @@ function arsShopEnter() {
   if (!arsDefense) arsDefense = { shields: [], mines: [] };
   arsDockMorph(true, 'Играть');
   const shop = document.getElementById('dock-shop');
-  if (!shop._built) {
+  if (shop._builtMode !== lastMode) {
+    shop._builtMode = lastMode;
     const grid = document.getElementById('dshop-grid');
     grid.innerHTML = '';
-    ARS_ORDER.forEach(key => {
-      const d = ARS_DEF[key];
+    ARSO().forEach(key => {
+      const d = ARSD(key);
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'ars-tile';
@@ -1291,9 +1341,11 @@ function arsShopEnter() {
       tile.addEventListener('click', () => arsTileTap(key));
       grid.appendChild(tile);
     });
-    document.getElementById('dshop-reset').addEventListener('click', arsResetAll);
-    document.getElementById('dshop-back').addEventListener('click', () => arsShopExit(true));
-    shop._built = true;
+    if (!shop._handlers) {
+      shop._handlers = true;
+      document.getElementById('dshop-reset').addEventListener('click', arsResetAll);
+      document.getElementById('dshop-back').addEventListener('click', () => arsShopExit(true));
+    }
   }
   document.getElementById('place-board').classList.add('def-mode');
   arsShopSync();
@@ -1301,7 +1353,7 @@ function arsShopEnter() {
 }
 // тап по карточке: +1; на максимуме — сброс в 0 (с возвратом XP)
 function arsTileTap(k) {
-  const d = ARS_DEF[k];
+  const d = ARSD(k);
   if (arsBuy[k] >= d.max) {            // полный — обнуляем
     arsRefundAllOf(k);
   } else if (getXP() >= d.price) {
@@ -1319,13 +1371,13 @@ function arsRefundAllOf(k) {
   if (k === 'shield') arsDefense.shields.length = 0;
   if (k === 'mine') arsDefense.mines.length = 0;
   arsBuy[k] = 0;
-  setXP(getXP() + n * ARS_DEF[k].price);
+  setXP(getXP() + n * ARSD(k).price);
 }
 function arsResetAll() {
   if (!arsBuy) return;
   const back = arsSpent();
   if (back > 0) setXP(getXP() + back);
-  ARS_ORDER.forEach(k => { arsBuy[k] = 0; });
+  ARSO().forEach(k => { arsBuy[k] = 0; });
   arsDefense.shields.length = 0; arsDefense.mines.length = 0;
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium'); } catch (e) {}
   arsShopSync(); arsRenderPlaceOverlays();
@@ -1337,13 +1389,13 @@ function arsShopExit(refund) {
     arsBuy = null; arsDefense = null;
   }
   arsShopPhase = false;
-  arsDockMorph(false, lastMode === 'classic' ? 'Далее' : 'Играть');
+  arsDockMorph(false, 'Далее');
   document.getElementById('place-board').classList.remove('def-mode');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
 }
 function arsBuyItem(k) {
-  const d = ARS_DEF[k];
+  const d = ARSD(k);
   if (arsBuy[k] >= d.max || getXP() < d.price) return;
   if (k === 'shield') { const rt = arsRandShield(); if (rt === null) return; arsDefense.shields.push(rt); }
   if (k === 'mine') { const m = arsRandMine(); if (!m) return; arsDefense.mines.push(m); }
@@ -1355,13 +1407,13 @@ function arsBuyItem(k) {
 function arsShopSync() {
   document.getElementById('dshop-bal').textContent = getXP() + ' XP';
   const bal = getXP();
-  ARS_ORDER.forEach(k => {
+  ARSO().forEach(k => {
     const n = document.getElementById('ars-n-' + k);
-    if (n) n.textContent = arsBuy[k] + '/' + ARS_DEF[k].max;
+    if (n) n.textContent = arsBuy[k] + '/' + ARSD(k).max;
     const tile = document.getElementById('ars-tile-' + k);
     if (tile) {
       tile.classList.toggle('sel', arsBuy[k] > 0);
-      tile.classList.toggle('poor', arsBuy[k] === 0 && bal < ARS_DEF[k].price);
+      tile.classList.toggle('poor', arsBuy[k] === 0 && bal < ARSD(k).price);
     }
   });
 }
@@ -1593,7 +1645,7 @@ function arsShowAim(kind, r, c) {
   if (!b) return;
   let aiming = false, last = null;
   const upd = (x, y) => {
-    if (!state || !state.armed || state.turn !== 'player' || state.over) return;
+    if (!state || !state.armed || state.cd || state.turn !== 'player' || state.over) return;
     const cell = cellFromPointIn('enemy-board', x, y);
     if (cell) { aiming = true; last = cell; arsShowAim(state.armed, cell.r, cell.c); }
   };
@@ -1639,7 +1691,7 @@ function arsRenderPanel() {
       b.className = 'ars-btn'; b.id = 'ars-btn-' + k; b.type = 'button';
       b.innerHTML = ARS_DEF[k].ico + '<span class="ars-dots" id="ars-bdg-' + k + '"></span>';
       b.addEventListener('click', () => {
-        if (!state || state.over || state.turn !== 'player') return;
+        if (!state || state.over || state.cd || state.turn !== 'player') return;
         state.armed = (state.armed === k) ? null : k;
         if (!state.armed) arsClearAim();
         arsSyncPanel();
@@ -1657,8 +1709,10 @@ function arsSyncPanel() {
   ['radar', 'big', 'line'].forEach(k => {
     const b = document.getElementById('ars-btn-' + k), bd = document.getElementById('ars-bdg-' + k);
     if (!b) return;
+    if (k === 'radar' && lastMode === 'fast') { b.style.display = 'none'; return; }
+    b.style.display = '';
     let dots = '';
-    for (let i = 0; i < ARS_DEF[k].max; i++) dots += '<i class="' + (i < A[k] ? '' : 'off') + '"></i>';
+    for (let i = 0; i < ARSD(k).max; i++) dots += '<i class="' + (i < A[k] ? '' : 'off') + '"></i>';
     bd.innerHTML = dots;
     b.classList.toggle('depleted', A[k] <= 0);
     b.classList.toggle('armed', state.armed === k);
@@ -2122,11 +2176,10 @@ document.getElementById('play-btn').addEventListener('click', () => {
   const allPlaced = placement.pieces.every(p => p.placed);
   const anyBad = placement.pieces.some(p => p.placed && p.bad);
   if (!allPlaced || anyBad) return;
-  if (lastMode === 'classic') { arsShopEnter(); return; }   // классика — мини-магазин арсенала
-  arsBuy = null; arsDefense = null;
-  startBattle();
+  arsShopEnter();   // арсенал есть в обоих режимах (в быстром — урезанный)
 });
 
+setTimeout(() => { try { syncMenuVersion(!document.getElementById('menu').classList.contains('hidden')); } catch (e) {} }, 0);
 function syncMenuVersion(open) {
   const gv = document.getElementById('app-version');
   const mv = document.getElementById('menu-version');
@@ -2157,9 +2210,11 @@ document.getElementById('gametype-back-x').addEventListener('click', () => {
   showMenu();
 });
 document.getElementById('menu-friends').addEventListener('click', () => {
+  syncMenuVersion(false);
   // друзья — появится позже
 });
 document.getElementById('menu-settings').addEventListener('click', () => {
+  syncMenuVersion(false);
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('menu').classList.add('hidden');
@@ -2386,12 +2441,14 @@ function frameDecoMarkup(ri) {
   }
   return P.join('');
 }
-function styleFrame(el, ri) {
+function styleFrame(el, ri, noGlow) {
   if (!el) return;
   el.style.position = 'relative';   // декор позиционируется от рамки (важно для #ov-frame и любых хостов)
   el.style.padding = ri.bw + 'px';
   const glow = (ri.tier === 3 || ri.cat === 'absolute') ? 15 : (ri.tier === 2 ? 10 : 6);
-  let shadow = '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
+  let shadow = noGlow
+    ? '0 0 0 0 transparent'
+    : '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
   if (ri.tier === 2) shadow += ', inset 0 0 0 1px rgba(255,255,255,0.30)';
   if (ri.tier === 3) shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.5)';
   if (ri.cat === 'absolute') shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.65)';
@@ -2439,7 +2496,7 @@ function pfSlideEl(idx, cur) {
     + '<div class="pf-frame"><div class="pf-avatar"></div></div>';
   el.querySelector('.pf-name').textContent = pfDisplayName();
   setAvatar(el.querySelector('.pf-avatar'));
-  styleFrame(el.querySelector('.pf-frame'), ri);
+  styleFrame(el.querySelector('.pf-frame'), ri, true);   // в карусели — без наружного свечения (режется краем окна)
   const rk = el.querySelector('.pf-rank'); rk.textContent = ri.name; rk.style.color = ri.c1;
   const fill = el.querySelector('.pf-xp-fill');
   const frac = (idx === cur.index) ? cur.frac : 1;   // чужие ранги — полная полоса (виден их цвет)
@@ -2463,7 +2520,7 @@ function pfLayout(win, animate) {
   }
   const tx = -(pfIndex * track._step) + (Vw - Cw) / 2;
   track.style.transition = animate ? 'transform 0.32s cubic-bezier(.22,.9,.32,1)' : 'none';
-  track.style.transform = 'translateX(' + tx + 'px)';
+  track.style.transform = 'translateX(' + Math.round(tx) + 'px)';   // целые px — сосед не выглядывает полоской
   track._tx = tx;
 }
 function pfUpdateScrollbar() {
@@ -2661,7 +2718,17 @@ function showXpResult(win, count, kind, extra) {
   const tallyN = document.getElementById('ov-tally-n');
   const gainEl = document.getElementById('ov-xp-gain');
   const fruitIcon = document.querySelector('#ov-tally .ov-fruit');
-  title.innerHTML = '<span class="logo-text">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
+  title.innerHTML = '<span class="logo-text ov-pop">' + (win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ') + '</span>';
+  {  // появление: мягкий поп (масштаб + проявление), без горизонтального сдвига
+    const t = title.firstChild;
+    t.style.opacity = '0';
+    t.style.transform = 'scale(0.86) translateY(8px)';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      t.style.transition = 'opacity 0.45s ease, transform 0.55s cubic-bezier(.3,1.25,.45,1)';
+      t.style.opacity = '1';
+      t.style.transform = 'scale(1) translateY(0)';
+    }));
+  }
   overlay.classList.toggle('lose', !win);
   overlay.classList.add('is-xp');
   overlay.classList.remove('settled', 'act-show');
@@ -3212,6 +3279,8 @@ function snakeTick() {
   const now = snakeNow();
   [snakeState.me, snakeState.ai].forEach(side => {
     if (side.state !== 'alive') return;
+    const starving = side.hungerStart && (now - side.hungerStart) >= 5000 && (now - side.lastShrink) >= 1000;
+    if (starving && side.cells.length <= 2) { snakeDeath(side); return; }   // смерть от голода — до шага, без рывка вперёд
     side.fromCells = side.cells.map(p => ({ r: p.r, c: p.c }));   // откуда плавно едем
     side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
     const res = snakeAdvance(side, side.dir);
@@ -3223,11 +3292,9 @@ function snakeTick() {
       if (side.who === 'me') { side.fruitsEaten++; snakeOnEat(side); }
       snakeDrawFruit(side, side._eaten);     // бёрст на месте съедения + новый фрукт с появлением
     }
-    // голод: после 5с без еды — ужимание на 1 клетку/сек; на минимуме — смерть
-    if (!ate && side.hungerStart && (now - side.hungerStart) >= 5000 && (now - side.lastShrink) >= 1000) {
+    if (!ate && starving) {                  // ужимание на 1 клетку/сек
       side.lastShrink = now;
-      if (side.cells.length > 2) side.cells.pop();
-      else { snakeDeath(side); return; }
+      side.cells.pop();
     }
     side.tickAt = now;   // отрисовку с интерполяцией ведёт snakeRenderLoop
   });
@@ -3350,12 +3417,20 @@ function buildArenaField() {
   const host = document.getElementById('arena-field');
   host.innerHTML = '';
   const svg = svgEl('svg', { class: 'arena-svg', viewBox: '0 0 ' + ARENA_COLS + ' ' + ARENA_ROWS, preserveAspectRatio: 'xMidYMid meet' });
+  // клип по границам поля: торус-клоны не видны за краями
+  const defs = svgEl('defs', {});
+  const cp = svgEl('clipPath', { id: 'arena-clip', clipPathUnits: 'userSpaceOnUse' });
+  cp.appendChild(svgEl('rect', { x: 0, y: 0, width: ARENA_COLS, height: ARENA_ROWS, rx: 0.3 }));
+  defs.appendChild(cp);
+  svg.appendChild(defs);
+  const clipG = svgEl('g', { 'clip-path': 'url(#arena-clip)' });
+  svg.appendChild(clipG);
   const bg = svgEl('g', {});
   for (let r = 0; r < ARENA_ROWS; r++)
     for (let c = 0; c < ARENA_COLS; c++)
       bg.appendChild(svgEl('rect', { class: 'snk-bgc', x: c + 0.06, y: r + 0.06, width: 0.88, height: 0.88, rx: 0.18 }));
   const gFruit = svgEl('g', {});
-  svg.appendChild(bg); svg.appendChild(gFruit);
+  clipG.appendChild(bg); clipG.appendChild(gFruit);
   const mk = who => {
     const gBody = svgEl('g', {});
     const gMarks = svgEl('g', {});
@@ -3370,7 +3445,7 @@ function buildArenaField() {
       u.setAttribute('transform', 'translate(' + (s[0] * ARENA_COLS) + ' ' + (s[1] * ARENA_ROWS) + ')');
       gBody.appendChild(u);
     });
-    svg.appendChild(gBody); svg.appendChild(gMarks);
+    clipG.appendChild(gBody); clipG.appendChild(gMarks);
     return { gBody, gMarks, inner };
   };
   const aiR = mk('ai'), meR = mk('me');
@@ -3453,8 +3528,8 @@ function arenaEnsureFruits() {
 }
 function arenaDrawFruit(burst) {
   const g = arenaState.gFruit; g.innerHTML = '';
-  if (burst) g.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.3 }));
-  arenaState.fruits.forEach(f => g.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: f.c + 0.5, cy: f.r + 0.5, r: 0.3 })));
+  if (burst) g.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.15 }));
+  arenaState.fruits.forEach(f => g.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: f.c + 0.5, cy: f.r + 0.5, r: 0.15 })));
 }
 function arenaNearestFruit(side) {
   let best = null, bd = 1e9;

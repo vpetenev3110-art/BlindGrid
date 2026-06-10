@@ -931,10 +931,13 @@
     display: flex; align-items: center; justify-content: center;
   }
   #arena-field {
-    width: 100%; height: 100%; box-sizing: border-box;
+    aspect-ratio: 13 / 20;
+    max-width: 100%; max-height: 100%;
+    margin: auto; box-sizing: border-box;
     display: flex; align-items: center; justify-content: center;
     border-radius: 16px; padding: 6px; background: var(--grid-bg);
     box-shadow: inset 0 0 0 1px rgba(52,48,74,0.05);
+    overflow: hidden;
   }
   .arena-svg { width: 100%; height: 100%; display: block; }
 
@@ -1421,7 +1424,7 @@
   /* 4) красный кубик в меню — под тем же углом, что и на остальных страницах */
   #menu-logo .logo-cube { transform: rotate(8deg); }
   /* 5) хаб выбора режима */
-  #hub { display: flex; flex-direction: column; gap: 10px; width: min(86vw, 340px); }
+  #hub { display: flex; flex-direction: column; gap: 10px; width: min(94vw, 400px); }
   .hub-sec {
     margin-top: 6px;
     font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
@@ -1429,9 +1432,30 @@
     color: var(--ink-soft); text-align: left; padding-left: 4px;
   }
   .hub-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .hub-row .menu-btn { width: 100%; justify-content: center; padding: 15px 8px; font-size: 14.5px; }
+  .hub-row .menu-btn { width: 100%; justify-content: center; padding: 17px 8px; font-size: 15px; }
 
   /* при градиентной заливке букв заголовок поражения остаётся красным */
   #overlay.lose #overlay-title .logo-text {
     background-image: linear-gradient(168deg, #ffb3c0 0%, #ff8095 100%);
   }
+
+  /* заголовок итогов: без горизонтального въезда */
+  #overlay h1 .logo-text { animation: none; display: inline-block; will-change: transform, opacity; }
+
+  /* отсчёт перед боем */
+  .battle-cd {
+    position: absolute; inset: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20, 16, 36, 0);
+    backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px);
+    transition: background 0.3s ease;
+    pointer-events: auto;
+  }
+  .battle-cd.on { background: rgba(20, 16, 36, 0.45); }
+  .battle-cd-n {
+    font-family: 'Fredoka', sans-serif; font-weight: 700;
+    font-size: 84px; color: #fff;
+    text-shadow: 0 6px 30px rgba(0,0,0,0.4);
+    will-change: transform, opacity;
+  }
+  .battle-cd-n.go { font-size: 56px; letter-spacing: 3px; color: #4fcac4; }

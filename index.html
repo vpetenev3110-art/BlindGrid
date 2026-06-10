@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=57">
+<link rel="stylesheet" href="index.css?v=58">
 <style>
   /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
      поэтому меню не успевает мелькнуть */
@@ -34,7 +34,7 @@
 </head>
 <body>
 <div id="loader"><div class="loader-spin"></div></div>
-<span id="app-version">v1.7.0.0</span>
+<span id="app-version">v1.7.1.0</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -182,23 +182,23 @@
       <div id="hub">
         <div class="hub-sec">Морской бой</div>
         <div class="hub-row">
-        <button class="btn menu-btn menu-btn-secondary mode-card sea-mode" id="mode-fast">
+        <button class="btn menu-btn menu-btn-secondary mode-card" id="mode-fast">
           <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 L4 14 h7 l-1 8 9-12 h-7 z"/></svg>
           <span>Быстрый</span>
         </button>
-        <button class="btn menu-btn menu-btn-secondary mode-card sea-mode" id="mode-classic">
-          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9 3.5 v17 M15 3.5 v17 M3.5 9 h17 M3.5 15 h17"/></svg>
+        <button class="btn menu-btn menu-btn-secondary mode-card" id="mode-classic">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2.6 v3.2 M12 18.2 v3.2 M2.6 12 h3.2 M18.2 12 h3.2"/></svg>
           <span>Классика</span>
         </button>
         </div>
         <div class="hub-sec">Змейка</div>
         <div class="hub-row">
-        <button class="btn menu-btn menu-btn-secondary mode-card snake-mode" id="mode-snake-classic">
-          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9 3.5 v17 M15 3.5 v17 M3.5 9 h17 M3.5 15 h17"/></svg>
+        <button class="btn menu-btn menu-btn-secondary mode-card" id="mode-snake-classic">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6 h7 a3 3 0 0 1 0 6 H8 a3 3 0 0 0 0 6 h6"/><circle cx="18.5" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>
           <span>Классика</span>
         </button>
-        <button class="btn menu-btn menu-btn-secondary mode-card snake-mode" id="mode-snake-arena">
-          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6 h7 a3 3 0 0 1 0 6 H8 a3 3 0 0 0 0 6 h6"/><circle cx="18.5" cy="18" r="1.4" fill="currentColor" stroke="none"/><path d="M3 3 h18 v18 h-18 z" opacity="0.35"/></svg>
+        <button class="btn menu-btn menu-btn-secondary mode-card" id="mode-snake-arena">
+          <svg class="menu-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><circle cx="14.6" cy="9.4" r="2.7"/><path d="M6.4 16.4 L12.7 11.3" stroke-width="2.2"/></svg>
           <span>Арена</span>
         </button>
         </div>
@@ -313,6 +313,6 @@
   </div>
 </div>
 
-<script src="index.js?v=57"></script>
+<script src="index.js?v=58"></script>
 </body>
 </html>
