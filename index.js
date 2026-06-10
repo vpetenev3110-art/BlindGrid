@@ -1236,11 +1236,40 @@ function arsRandMine() {
 }
 
 // --- мини-магазин на месте дока фигур ---
+// плавное превращение дока «твои фигуры» ↔ «арсенал»: FLIP по высоте + фейды контента
+function arsDockMorph(toShop) {
+  const dock = document.getElementById('dock');
+  const out = toShop ? [document.getElementById('dock-title'), document.getElementById('dock-pieces')] : [document.getElementById('dock-shop')];
+  const inn = toShop ? [document.getElementById('dock-shop')] : [document.getElementById('dock-title'), document.getElementById('dock-pieces')];
+  out.forEach(el => { if (el) { el.style.transition = 'opacity 0.16s ease'; el.style.opacity = '0'; } });
+  setTimeout(() => {
+    const h0 = dock.offsetHeight;
+    dock.classList.toggle('shop-mode', toShop);
+    inn.forEach(el => { if (el) { el.style.transition = 'none'; el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; } });
+    const h1 = dock.offsetHeight;
+    if (h0 !== h1 && h0 > 0) {           // FLIP: поле плавно едет вместе с высотой дока
+      dock.style.height = h0 + 'px';
+      dock.style.overflow = 'hidden';
+      void dock.offsetWidth;
+      dock.style.transition = 'height 0.38s cubic-bezier(.25,.9,.3,1), max-width 0.38s cubic-bezier(.25,.9,.3,1), padding 0.38s cubic-bezier(.25,.9,.3,1)';
+      dock.style.height = h1 + 'px';
+      setTimeout(() => { dock.style.height = ''; dock.style.overflow = ''; dock.style.transition = ''; }, 420);
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      inn.forEach(el => {
+        if (!el) return;
+        el.style.transition = 'opacity 0.26s ease, transform 0.26s cubic-bezier(.25,.9,.3,1)';
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+      });
+    }));
+  }, 170);
+}
 function arsShopEnter() {
   arsShopPhase = true;
   if (!arsBuy) arsBuy = { shield: 0, radar: 0, big: 0, line: 0, mine: 0 };
   if (!arsDefense) arsDefense = { shields: [], mines: [] };
-  document.getElementById('dock').classList.add('shop-mode');
+  arsDockMorph(true);
   const shop = document.getElementById('dock-shop');
   if (!shop._built) {
     const grid = document.getElementById('dshop-grid');
@@ -1304,7 +1333,7 @@ function arsShopExit(refund) {
     arsBuy = null; arsDefense = null;
   }
   arsShopPhase = false;
-  document.getElementById('dock').classList.remove('shop-mode');
+  arsDockMorph(false);
   document.getElementById('place-board').classList.remove('def-mode');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
@@ -1511,6 +1540,20 @@ function cellFromPointIn(boardId, x, y) {
   const r = Math.max(0, Math.min(SIZE - 1, Math.floor((y - rect.top - pad) / cellSz)));
   return { r, c };
 }
+// силуэт корабля от радара: появляется, мигает и тает (всё JS-транзишенами)
+function radarBlinkCell(boardId, r, c) {
+  const cell = getCellEl(boardId, r, c);
+  if (!cell) return;
+  const d = document.createElement('div');
+  d.className = 'radar-sil';
+  cell.appendChild(d);
+  const seq = [[30, '1', 0.25], [950, '0.25', 0.14], [1130, '1', 0.14], [1310, '0.25', 0.14], [1490, '1', 0.14], [1950, '0', 0.45]];
+  seq.forEach(s => setTimeout(() => {
+    d.style.transition = 'opacity ' + s[2] + 's ease';
+    d.style.opacity = s[1];
+  }, s[0]));
+  setTimeout(() => d.remove(), 2500);
+}
 function arsClearAim() {
   document.querySelectorAll('#enemy-board .ars-aim').forEach(e => e.remove());
 }
@@ -1623,21 +1666,16 @@ function arsPlayerUse(r, c) {
   const kind = state.armed;
   state.armed = null;
   if (kind === 'radar' && A.radar > 0) {
-    A.radar--;
+    A.radar--; arsSyncPanel();
     const r0 = arsClampCenter(r) - 1, c0 = arsClampCenter(c) - 1;
-    const sh = arsShieldFor(state.ars.enemy, arsZoneRows(r0));
-    arsSyncPanel();
-    if (sh) { arsFlashShield('enemy-board', sh); return; }    // щит сжёг радар; ход остаётся
     arsScanFlash('enemy-board', r0, c0);
     for (let rr = r0; rr <= r0 + 2; rr++) for (let cc = c0; cc <= c0 + 2; cc++) {
       const cell = state.enemy.board[rr][cc];
-      if (cell.shot) continue;
-      const el = getCellEl('enemy-board', rr, cc);
-      if (!el) continue;
-      const occupied = cell.shipId !== null || !!arsGetMineAt(state.ars.enemy, rr, cc);
-      el.classList.add(occupied ? 'radar-ship' : 'radar-dot');   // силуэт, не раскрывая корабль
+      if (cell.shot || cell.shipId === null) continue;          // отмечаем только корабли
+      radarBlinkCell('enemy-board', rr, cc);                    // силуэт мигает и исчезает — запоминай
     }
-    return;   // радар не тратит ход
+    setTimeout(() => { if (state && !state.over) passTurnToEnemy(); }, 2500);   // радар тратит ход
+    return;
   }
   if (kind === 'big' && A.big > 0) {
     A.big--; arsSyncPanel();
@@ -1692,15 +1730,13 @@ function aiZonePick() {
 function aiUseRadar() {
   const A = state.ars.enemy; A.radar--;
   const z = aiZonePick();
-  const sh = arsShieldFor(state.ars.player, arsZoneRows(z.r0));
-  if (sh) { arsFlashShield('battle-my-board', sh); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 950); return; }
   arsScanFlash('battle-my-board', z.r0, z.c0);
   state.aiKnown = state.aiKnown || [];
   for (let rr = z.r0; rr <= z.r0 + 2; rr++) for (let cc = z.c0; cc <= z.c0 + 2; cc++) {
     const cell = state.player.board[rr][cc];
     if (!cell.shot && cell.shipId !== null) state.aiKnown.push({ r: rr, c: cc });
   }
-  setTimeout(() => { if (!state.over && state.turn === 'enemy') aiTurn(); }, 1100);   // радар не тратит ход
+  setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 1100);   // радар тоже тратит ход
 }
 function aiUseBig() {
   const A = state.ars.enemy; A.big--;
@@ -1813,22 +1849,22 @@ function flyBomb(boardId, r, c, fromRight, cb) {
   w.className = 'ars-bomb-w';
   const inner = document.createElement('div');
   inner.className = 'ars-bomb';
+  const bs = Math.max(10, Math.round(p.w * 0.55));   // размер бомбы — от размера клетки (на мини-поле миниатюрнее)
+  inner.style.width = bs + 'px'; inner.style.height = bs + 'px';
   w.appendChild(inner);
   const sx = fromRight ? window.innerWidth + 50 : -50;
   w.style.transform = 'translate(' + sx + 'px,' + p.y + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
   document.body.appendChild(w);
-  const T = 640;   // полное время полёта
+  const T = 640;
+  const arc = Math.round(p.w * 2.6);                 // высота дуги тоже от клетки
   requestAnimationFrame(() => {
-    // прямой пролёт к клетке
     w.style.transition = 'transform ' + T + 'ms linear';
     w.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)';
-    // фаза 1: подъём и рост (бомба «ближе к игроку»)
     inner.style.transition = 'transform ' + Math.round(T * 0.55) + 'ms cubic-bezier(.25,.6,.5,1)';
-    inner.style.transform = 'translate(-50%,-50%) translateY(-86px) scale(1.55)';
+    inner.style.transform = 'translate(-50%,-50%) translateY(' + (-arc) + 'px) scale(1.55)';
   });
   setTimeout(() => {
-    // фаза 2: снижение и уменьшение к клетке
     inner.style.transition = 'transform ' + Math.round(T * 0.45) + 'ms cubic-bezier(.5,0,.8,.4)';
     inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.8)';
   }, Math.round(T * 0.55));
@@ -1836,6 +1872,64 @@ function flyBomb(boardId, r, c, fromRight, cb) {
     w.remove();
     if (cb) cb({ x: p.x, y: p.y });
   }, T + 20);
+}
+// тройная бомба: на подлёте к полю распадается на три бомбочки, летящие к своим клеткам
+function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
+  const pc = arsCellCenter(boardId, centerR, centerC);
+  if (!pc) { onLand(); return; }
+  const w = document.createElement('div');
+  w.className = 'ars-bomb-w';
+  const inner = document.createElement('div');
+  inner.className = 'ars-bomb';
+  const bs = Math.max(11, Math.round(pc.w * 0.6));
+  inner.style.width = bs + 'px'; inner.style.height = bs + 'px';
+  w.appendChild(inner);
+  const sx = fromRight ? window.innerWidth + 50 : -50;
+  // точка распада — на подлёте, чуть не доезжая поля
+  const splitX = pc.x + (fromRight ? 1 : -1) * Math.max(90, pc.w * 3);
+  const splitY = pc.y;
+  w.style.transform = 'translate(' + sx + 'px,' + splitY + 'px)';
+  inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
+  document.body.appendChild(w);
+  const T1 = 460;
+  const arc = Math.round(pc.w * 2.6);
+  requestAnimationFrame(() => {
+    w.style.transition = 'transform ' + T1 + 'ms linear';
+    w.style.transform = 'translate(' + splitX + 'px,' + splitY + 'px)';
+    inner.style.transition = 'transform ' + T1 + 'ms cubic-bezier(.25,.6,.5,1)';
+    inner.style.transform = 'translate(-50%,-50%) translateY(' + (-arc) + 'px) scale(1.4)';
+  });
+  setTimeout(() => {
+    w.remove();
+    const peakY = splitY - arc;
+    const mini = Math.max(8, Math.round(pc.w * 0.42));
+    let landed = 0;
+    targets.forEach((t, i) => {
+      const tp = arsCellCenter(boardId, t.r, t.c);
+      const m = document.createElement('div');
+      m.className = 'ars-bomb-w';
+      const mi = document.createElement('div');
+      mi.className = 'ars-bomb';
+      mi.style.width = mini + 'px'; mi.style.height = mini + 'px';
+      mi.style.transform = 'translate(-50%,-50%) scale(1.1)';
+      m.appendChild(mi);
+      m.style.transform = 'translate(' + splitX + 'px,' + peakY + 'px)';
+      document.body.appendChild(m);
+      const D = 250 + i * 70;
+      requestAnimationFrame(() => {
+        m.style.transition = 'transform ' + D + 'ms cubic-bezier(.45,.1,.75,.5)';
+        m.style.transform = 'translate(' + (tp ? tp.x : splitX) + 'px,' + (tp ? tp.y : splitY) + 'px)';
+        mi.style.transition = 'transform ' + D + 'ms ease-in';
+        mi.style.transform = 'translate(-50%,-50%) scale(0.7)';
+      });
+      setTimeout(() => {
+        m.remove();
+        landed++;
+        if (landed === targets.length) onLand();
+      }, D + 20);
+    });
+    if (!targets.length) onLand();
+  }, T1 + 10);
 }
 // мигающая полоса защиты: вспыхивает, мигает и растворяется
 function arsFlashShield(boardId, shield) {
@@ -1868,9 +1962,9 @@ function animShieldBlock(boardId, r, c, shield, done) {
     setTimeout(done, 950);
   });
 }
-// большая бомба: ОДИН снаряд к центру зоны, по приземлении — серия из трёх взрывов
+// большая бомба: снаряд на подлёте распадается на три, каждая летит к своей клетке
 function animBigStrike(boardId, centerR, centerC, targets, shootFn, onMine, done) {
-  flyBomb(boardId, centerR, centerC, boardId === 'enemy-board', () => {
+  flyBombSplit(boardId, centerR, centerC, targets, boardId === 'enemy-board', () => {
     let i = 0;
     const step = () => {
       if (!state || state.over) return;
@@ -1880,7 +1974,7 @@ function animBigStrike(boardId, centerR, centerC, targets, shootFn, onMine, done
       if (res === 'hit' || res === 'miss') spawnBlast(boardId, t.r, t.c);
       if (res === 'mine') { spawnMineBlast(boardId, t.r, t.c); onMine(); return; }
       if (res === 'end') return;
-      setTimeout(step, 130);
+      setTimeout(step, 120);
     };
     step();
   });

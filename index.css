@@ -284,6 +284,7 @@
   /* dock */
   #dock {
     margin: 16px auto 0; width: 100%; max-width: 320px;
+    transition: max-width 0.38s cubic-bezier(.25,.9,.3,1), padding 0.38s cubic-bezier(.25,.9,.3,1);
     padding: 16px; border-radius: 18px;
     background: var(--panel-bg, rgba(255,255,255,0.45));
     box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06));
@@ -1227,7 +1228,7 @@
   /* панель арсенала в бою — справа от верхнего поля */
   .board-section-mini { position: relative; }
   #ars-panel {
-    position: absolute; left: calc(50% + var(--board-w-mini, 210px) / 2 + 10px); top: 24px; z-index: 8;
+    position: absolute; right: calc(50% - var(--board-w, 320px) / 2); left: auto; top: 24px; z-index: 8;
     display: flex; flex-direction: column; gap: 9px;
     padding: 9px; border-radius: 17px;
     background: var(--panel-bg, rgba(255,255,255,0.5));
@@ -1264,7 +1265,7 @@
     box-shadow: 0 2px 6px rgba(255,93,143,0.5);
   }
   #ars-hint {
-    position: absolute; left: calc(50% + var(--board-w-mini, 210px) / 2 + 10px); top: 244px; z-index: 8;
+    position: absolute; right: calc(50% - var(--board-w, 320px) / 2); left: auto; top: 244px; z-index: 8;
     max-width: 86px; padding: 6px 8px; border-radius: 10px;
     background: var(--panel-bg, rgba(255,255,255,0.5));
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
@@ -1279,7 +1280,7 @@
 
   /* мини-магазин арсенала на месте дока */
   #dock-shop { display: none; }
-  #dock.shop-mode { max-width: 344px; padding: 12px 12px 11px; }
+  #dock.shop-mode { max-width: var(--board-w, 320px); padding: 12px 12px 11px; }
   #dock.shop-mode #dock-shop { display: flex; flex-direction: column; gap: 8px; }
   #dock.shop-mode #dock-pieces, #dock.shop-mode #dock-title { display: none; }
   .dshop-head {
@@ -1378,3 +1379,15 @@
     box-shadow: 0 0 5px rgba(255, 93, 115, 0.5);
     will-change: transform, opacity;
   }
+
+  /* силуэт радара: мигает и исчезает — игрок запоминает */
+  .radar-sil {
+    position: absolute; inset: 20%; border-radius: 5px;
+    background: rgba(82, 75, 112, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22), 0 0 8px rgba(82,75,112,0.6);
+    opacity: 0; pointer-events: none;
+    will-change: opacity;
+  }
+  /* плавное появление контента магазина при морфе */
+  #dock-shop { will-change: opacity, transform; }
+  #dock-title, #dock-pieces { will-change: opacity; }
