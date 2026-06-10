@@ -1382,80 +1382,80 @@ function frameDecoMarkup(ri) {
     '<rect x="' + inset + '" y="' + inset + '" width="' + (100 - 2 * inset) + '" height="' + (100 - 2 * inset)
     + '" rx="' + (27 - inset * 0.5) + '" fill="none" stroke="' + col + '" stroke-width="' + sw + '" opacity="' + (op || 1) + '"/>';
   switch (ri.cat) {
-    case 'bronze': {   // ромбики-заклёпки по сторонам
-      const s = 5 + t;
+    case 'bronze': {   // ромбики-заклёпки на гранях (прижаты к рамке)
+      const s = 4.5 + t * 0.8;
       const pts = [[2, 50], [98, 50]]; if (t >= 2) pts.push([50, 2], [50, 98]);
       pts.forEach(p => P.push('<rect x="' + (p[0] - s / 2) + '" y="' + (p[1] - s / 2) + '" width="' + s + '" height="' + s
-        + '" rx="1.6" transform="rotate(45 ' + p[0] + ' ' + p[1] + ')" fill="' + c2 + '"/>'));
+        + '" rx="1.4" transform="rotate(45 ' + p[0] + ' ' + p[1] + ')" fill="' + c2 + '"/>'));
       break;
     }
-    case 'iron': {     // клёпки по углам (с тиром больше и по центрам граней)
-      const r = 3.6 + t * 0.9;
+    case 'iron': {     // клёпки по углам, на самой рамке
+      const r = 3.2 + t * 0.7;
       const pos = [[16, 16], [84, 16], [16, 84], [84, 84]];
       if (t >= 2) pos.push([50, 2], [50, 98], [2, 50], [98, 50]);
       pos.forEach(p => P.push('<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + r + '" fill="' + c2 + '"/>'
         + '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (r * 0.42).toFixed(2) + '" fill="rgba(255,255,255,0.55)"/>'));
       break;
     }
-    case 'silver': {   // изящные внешние кольца (с тиром — больше колец)
-      P.push(ring(-5, 2.8, c1, 1));
-      if (t >= 2) P.push(ring(-9.5, 1.8, '#ffffff', 0.55));
-      if (t >= 3) P.push(ring(-13, 1.2, c1, 0.8));
+    case 'silver': {   // изящные тонкие линии впритык к рамке (и по её лицевой стороне)
+      P.push(ring(-2.5, 2, c1, 0.9));
+      if (t >= 2) P.push(ring(-5, 1.3, '#ffffff', 0.5));
+      if (t >= 3) P.push(ring(5.5, 1.1, '#ffffff', 0.55));
       break;
     }
-    case 'gold': {     // фигурные угловые накладки (длиннее и толще с тиром)
-      const arm = 13 + t * 5, sw = 7 + t;
+    case 'gold': {     // фигурные угловые накладки по контуру рамки
+      const arm = 11 + t * 4, sw = 6 + t * 0.8;
       const capD = 'M 2 ' + (2 + arm) + ' L 2 29 Q 2 2 29 2 L ' + (2 + arm) + ' 2';
       for (const rot of [0, 90, 180, 270]) {
         P.push('<path d="' + capD + '" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
-        P.push('<path d="' + capD + '" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="' + (sw * 0.32).toFixed(2) + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
+        P.push('<path d="' + capD + '" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="' + (sw * 0.3).toFixed(2) + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
       }
       break;
     }
-    case 'diamond': {  // срезы-фасеты поверх углов
-      const off = 30 + (t - 1) * 2, sw = 4.5 + t;
-      const cut = rot => '<line x1="-5" y1="' + off + '" x2="' + off + '" y2="-5" stroke="' + c1
+    case 'diamond': {  // срезы-фасеты, прижатые к углам
+      const off = 28 + t * 2, sw = 4 + t;
+      const cut = rot => '<line x1="-2" y1="' + off + '" x2="' + off + '" y2="-2" stroke="' + c1
         + '" stroke-width="' + sw + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
       P.push(cut(0), cut(90), cut(180), cut(270));
       if (t >= 3) {
-        const cut2 = rot => '<line x1="-10" y1="' + (off - 10) + '" x2="' + (off - 10) + '" y2="-10" stroke="' + c2
-          + '" stroke-width="2" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
+        const cut2 = rot => '<line x1="4" y1="' + (off - 6) + '" x2="' + (off - 6) + '" y2="4" stroke="' + c2
+          + '" stroke-width="1.8" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
         P.push(cut2(0), cut2(90), cut2(180), cut2(270));
       }
       break;
     }
-    case 'emerald': {  // ступенчатые скобы (изумрудная огранка)
-      const sw = 4 + t, a = 16 + t * 3;
-      const br = rot => '<path d="M -4 ' + a + ' H ' + (a * 0.45).toFixed(1) + ' V ' + (a * 0.45).toFixed(1) + ' H ' + a
-        + ' V -4" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
+    case 'emerald': {  // ступенчатые скобы у углов, компактные
+      const sw = 3.5 + t * 0.8, a = 14 + t * 2.5;
+      const br = rot => '<path d="M -2 ' + a + ' H ' + (a * 0.45).toFixed(1) + ' V ' + (a * 0.45).toFixed(1) + ' H ' + a
+        + ' V -2" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
       P.push(br(0), br(90), br(180), br(270));
       break;
     }
-    case 'ruby': {     // острые шипы-маркизы по сторонам (длиннее с тиром)
-      const len = 8 + t * 3, hw = 5.5 + t * 0.5;
+    case 'ruby': {     // аккуратные шипы-маркизы, едва выступают
+      const len = 4 + t, hw = 5 + t * 0.5;
       const sp = rot => '<polygon points="' + (50 - hw) + ',3 ' + (50 + hw) + ',3 50,' + (-len)
         + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
       P.push(sp(0), sp(90), sp(180), sp(270));
       if (t >= 3) {
-        const sp2 = rot => '<polygon points="47,1 53,1 50,-6" fill="' + c2 + '" transform="rotate(' + (rot + 45) + ' 50 50)"/>';
+        const sp2 = rot => '<polygon points="47.5,1.5 52.5,1.5 50,-3.5" fill="' + c2 + '" transform="rotate(' + (rot + 45) + ' 50 50)"/>';
         P.push(sp2(0), sp2(90), sp2(180), sp2(270));
       }
       break;
     }
-    case 'brilliant': {// сияющие шипы из углов + грани-лучики
-      const len = 8 + t * 3.5;
-      const k = rot => '<polygon points="8,2 2,8 ' + (-len) + ',' + (-len) + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
+    case 'brilliant': {// сияющие компактные шипы из углов
+      const len = 4 + t;
+      const k = rot => '<polygon points="9,2 2,9 ' + (-len) + ',' + (-len) + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
       P.push(k(0), k(90), k(180), k(270));
       if (t >= 2) {
-        const m = rot => '<polygon points="46,1 54,1 50,' + (-7 - t) + '" fill="' + c2 + '" transform="rotate(' + rot + ' 50 50)"/>';
+        const m = rot => '<polygon points="46.5,1.5 53.5,1.5 50,' + (-3 - t) + '" fill="' + c2 + '" transform="rotate(' + rot + ' 50 50)"/>';
         P.push(m(0), m(90), m(180), m(270));
       }
       break;
     }
-    case 'absolute': { // корона лучей всех цветов
+    case 'absolute': { // корона коротких лучей всех цветов
       const cols = ['#ff5d8f', '#ffbf4d', '#4fcac4', '#6c80f5'];
       for (let i = 0; i < 8; i++)
-        P.push('<polygon points="45.5,2 54.5,2 50,-12" fill="' + cols[i % 4] + '" transform="rotate(' + (i * 45) + ' 50 50)"/>');
+        P.push('<polygon points="46,1.5 54,1.5 50,-7" fill="' + cols[i % 4] + '" transform="rotate(' + (i * 45) + ' 50 50)"/>');
       break;
     }
   }
@@ -1463,6 +1463,7 @@ function frameDecoMarkup(ri) {
 }
 function styleFrame(el, ri) {
   if (!el) return;
+  el.style.position = 'relative';   // декор позиционируется от рамки (важно для #ov-frame и любых хостов)
   el.style.padding = ri.bw + 'px';
   const glow = (ri.tier === 3 || ri.cat === 'absolute') ? 15 : (ri.tier === 2 ? 10 : 6);
   let shadow = '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
