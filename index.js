@@ -155,11 +155,11 @@ function applyMode(mode) {
   const GAP = 4, PAD = 12;
   const CELL = SIZE >= 10 ? 33 : 35;
   const boardW = SIZE * CELL + (SIZE - 1) * GAP + PAD;
-  document.documentElement.style.setProperty('--board-w', boardW + 'px');
+  document.documentElement.style.setProperty('--board-w', 'min(' + boardW + 'px, 96vw)');   // узкие экраны: поле сжимается, не вылезает
   // уменьшенное «твоё поле» в бою — оно информационное, по нему не кликают
   const MINI_CELL = SIZE >= 10 ? 18 : 20;
   const miniW = SIZE * MINI_CELL + (SIZE - 1) * GAP + PAD;
-  document.documentElement.style.setProperty('--board-w-mini', miniW + 'px');
+  document.documentElement.style.setProperty('--board-w-mini', 'min(' + miniW + 'px, 58vw)');
   document.querySelectorAll('.grid').forEach(g => {
     g.style.gridTemplateColumns = 'repeat(' + SIZE + ', 1fr)';
   });
@@ -2302,6 +2302,7 @@ document.getElementById('play-btn').addEventListener('click', () => {
 });
 
 setTimeout(() => { try { syncMenuVersion(!document.getElementById('menu').classList.contains('hidden')); } catch (e) {} }, 0);
+setTimeout(() => { try { window.scrollTo(0, 0); } catch (e) {} }, 50);   // страховка: webview мог открыться со сдвигом
 // постоянный слой полётов: вставка снарядов в body заставляет Safari переигрывать переходы по всему документу
 function flyHost() {
   let h = document.getElementById('fly-layer');
