@@ -1450,6 +1450,7 @@ function arsShopEnter() {
   }
   document.getElementById('place-board').classList.add('def-mode');
   { const w = document.getElementById('place-board-wrap'); if (w) w.classList.add('def'); }
+  { const gen = placeGen; setTimeout(() => { if (gen === placeGen && arsShopPhase) placeRelayoutAfterResize(); }, 540); }   // поле сжалось — фигуры на новые клетки
   document.getElementById('controls').classList.add('ghost');   // плавно гаснут, место не схлопывается — ничего не прыгает
   arsShopSync();
   arsRenderPlaceOverlays();
@@ -1498,6 +1499,7 @@ function arsShopExit(refund) {
   document.getElementById('controls').classList.remove('ghost');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
+  { const gen = placeGen; setTimeout(() => { if (gen === placeGen && !arsShopPhase) placeRelayoutAfterResize(); }, 540); }   // поле выросло обратно — фигуры на новые клетки
 }
 function arsBuyItem(k) {
   const d = ARSD(k);
@@ -1523,6 +1525,12 @@ function arsShopSync() {
   });
 }
 
+// поле сменило размер (морф фазы арсенала): фигуры и оверлеи пере-укладываются по новым клеткам
+function placeRelayoutAfterResize() {
+  if (!placement) return;
+  renderShipLayer('place-board', placement.pieces, null, null, true);   // instant: без анимаций, просто новые пиксели
+  if (arsShopPhase) arsRenderPlaceOverlays();
+}
 // --- оверлеи на поле расстановки: перетаскиваемые щиты и мины ---
 function arsRenderPlaceOverlays() {
   if (!arsDefense) return;
@@ -2772,7 +2780,13 @@ function renderProfile() {
   });
   pfUpdateScrollbar();
 }
-window.addEventListener('resize', () => pfWindows().forEach(w => pfLayout(w, false)));
+window.addEventListener('resize', () => {
+  pfWindows().forEach(w => pfLayout(w, false));
+  clearTimeout(window._plRsT);
+  window._plRsT = setTimeout(() => {   // вьюпорт изменился (ротация/клавиатура) — фигуры на новые клетки
+    if (placement && document.getElementById('placement-screen').classList.contains('active')) placeRelayoutAfterResize();
+  }, 180);
+});
 
 // ---- оверлей конца раунда ----
 function applyOverlayRank(ri) {
