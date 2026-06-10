@@ -194,7 +194,7 @@
   #game.ui-hidden .screen,
   #game.ui-hidden #controls { visibility: hidden !important; }
 
-  #placement-screen { justify-content: center; }
+  #placement-screen { justify-content: flex-start; }
   #place-board-wrap { padding: 0 20px; }
 
   .board-label {
@@ -1537,4 +1537,17 @@
     .ars-tile .t-ico { width: 18px; height: 18px; }
     #dshop-reset, #dshop-back { padding: 6px 0; }
     #play-window { margin-top: 6px; }
+  }
+
+  /* мягкое центрирование расстановки: при переполнении верх не обрезается, а скроллится */
+  #placement-screen::before, #placement-screen::after { content: ''; flex: 1 1 0; min-height: 0; }
+  /* ===== скрытые селект-экраны не пейнтятся и не ловят ничего ===== */
+  /* opacity-вспышки при перезапусках переходов физически невозможны: visibility hidden */
+  #mode-select, #opp-select, #custom-select, #gametype-select, #snake-screen, #arena-screen {
+    transition: opacity 0.4s ease, visibility 0s linear 0s;
+  }
+  #mode-select.hidden, #opp-select.hidden, #custom-select.hidden,
+  #gametype-select.hidden, #snake-screen.hidden, #arena-screen.hidden {
+    visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0s linear 0.4s;
   }

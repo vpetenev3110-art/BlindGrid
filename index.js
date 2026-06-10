@@ -2330,7 +2330,12 @@ setTimeout(() => {
   const x = document.querySelector('#title .logo-cross');
   if (!x) return;
   x.style.cursor = 'pointer';
+  // выход — только по чистому тапу: свайп (скролл поля), задевший крестик, игнорируется
+  let xs = 0, ys = 0, swiped = false;
+  x.addEventListener('touchstart', e => { const t = e.touches[0]; xs = t.clientX; ys = t.clientY; swiped = false; }, { passive: true });
+  x.addEventListener('touchmove', e => { const t = e.touches[0]; if (Math.abs(t.clientX - xs) + Math.abs(t.clientY - ys) > 12) swiped = true; }, { passive: true });
   x.addEventListener('click', () => {
+    if (swiped) { swiped = false; return; }
     const onPlacement = document.getElementById('placement-screen').classList.contains('active');
     if (!onPlacement) return;   // в бою крестик не работает — чтобы не слить партию случайно
     if (arsShopPhase) arsShopExit(true);   // из арсенала — с полным возвратом XP
