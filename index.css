@@ -1496,3 +1496,23 @@
   /* стрелка-рулетка: серая, пока крутится */
   #turn-arrow.spin { background: rgba(148,150,170,0.16) !important; }
   #turn-arrow.spin .tri { fill: #9aa0b5 !important; }
+
+  /* ===== вертикальная адаптация под низкие экраны ===== */
+  /* страховка: если контент выше экрана — он прокручивается, ничего не «пропадает» */
+  #placement-screen, #battle-screen { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  /* тач по игровым полям — прицел/перетаскивание, не скролл */
+  #enemy-board, #place-board { touch-action: none; }
+  /* поле противника сжимается под доступную высоту: мини-поле + лейблы + стрелка + шапка */
+  #battle-screen .board-section:not(.board-section-mini) .grid {
+    max-width: min(var(--board-w, 320px), calc(100vh - min(200px, 58vw) - 235px));
+  }
+  #battle-screen .board-section:not(.board-section-mini) .board-label {
+    max-width: min(var(--board-w, 320px), calc(100vh - min(200px, 58vw) - 235px));
+  }
+  /* совсем низкие экраны: ужимаем воздух */
+  @media (max-height: 780px) {
+    #turn-zone { padding: 2px 0; }
+    .board-label { margin-bottom: 4px; }
+    #dock { margin-top: 10px; }
+    .mode-topbar { padding-top: 10px; }
+  }
