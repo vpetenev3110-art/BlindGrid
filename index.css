@@ -284,7 +284,6 @@
   /* dock */
   #dock {
     margin: 16px auto 0; width: 100%; max-width: var(--board-w, 320px);
-    transition: max-width 0.38s cubic-bezier(.25,.9,.3,1), padding 0.38s cubic-bezier(.25,.9,.3,1);
     padding: 16px; border-radius: 18px;
     background: var(--panel-bg, rgba(255,255,255,0.45));
     box-shadow: inset 0 0 0 1.5px var(--panel-edge, rgba(52,48,74,0.06));
@@ -792,8 +791,6 @@
   #game.style-flowers .ship-piece .flower-art svg { width: 100%; height: 100%; display: block;
     filter: drop-shadow(0 2px 4px rgba(52,48,74,0.25)); }
   /* кнопки режимов — стиль главного меню, с оттенками */
-  #mode-fast     { --bc:#c44e6a; --bbg:rgba(196,78,106,0.12); --bbg-h:rgba(196,78,106,0.2); }
-  #mode-classic  { --bc:#4c5fd0; --bbg:rgba(76,95,208,0.12); --bbg-h:rgba(76,95,208,0.2); }
   #opp-ai        { --bc:#2a9d96; --bbg:rgba(42,157,150,0.12); --bbg-h:rgba(42,157,150,0.2); }
   #opp-pvp       { --bc:#4c5fd0; --bbg:rgba(76,95,208,0.12); --bbg-h:rgba(76,95,208,0.2); }
 
@@ -931,14 +928,13 @@
     display: flex; align-items: center; justify-content: center;
   }
   #arena-field {
-    width: 100%; max-height: 100%;
+    width: 100%;
     margin: auto; box-sizing: border-box;
-    display: flex; align-items: center; justify-content: center;
     border-radius: 16px; padding: 6px; background: var(--grid-bg);
     box-shadow: inset 0 0 0 1px rgba(52,48,74,0.05);
     overflow: hidden;
   }
-  .arena-svg { width: 100%; height: 100%; display: block; }
+  .arena-svg { width: 100%; height: auto; display: block; }
 
   /* ===== ОКНО ПРОФИЛЯ (ава + ранг) ===== */
   .pf-window {
@@ -1283,12 +1279,12 @@
 
   /* мини-магазин арсенала на месте дока */
   #dock-shop { display: none; }
-  #dock.shop-mode { max-width: var(--board-w, 320px); padding: 12px 12px 11px; }
-  #dock.shop-mode #dock-shop { display: flex; flex-direction: column; gap: 8px; }
+  #dock.shop-mode { max-width: var(--board-w, 320px); padding: 10px 12px 9px; }
+  #dock.shop-mode #dock-shop { display: flex; flex-direction: column; gap: 7px; }
   #dock.shop-mode #dock-pieces, #dock.shop-mode #dock-title { display: none; }
   .dshop-head {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 2px 6px 6px;
+    padding: 0 6px 2px;
     font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
     letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft, #8a84a8);
   }
@@ -1298,7 +1294,7 @@
   }
   .ars-tile {
     position: relative; border: none; cursor: pointer;
-    border-radius: 13px; padding: 6px 6px 5px;
+    border-radius: 12px; padding: 5px 6px 4px;
     background: var(--btn-soft-bg);
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
     display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -1311,7 +1307,7 @@
     font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10px;
     color: var(--ink-soft, #8a84a8); line-height: 1;
   }
-  .ars-tile .t-ico { width: 23px; height: 23px; }
+  .ars-tile .t-ico { width: 21px; height: 21px; color: rgba(196,190,216,0.75); }   /* иконки серее */
   .ars-tile .t-ico svg { width: 100%; height: 100%; }
   .ars-tile .t-count {
     min-width: 34px; padding: 2px 8px; border-radius: 999px;
@@ -1325,7 +1321,7 @@
   .ars-tile.poor { opacity: 0.45; }
   .dshop-foot { display: flex; gap: 8px; margin-top: 2px; }
   #dshop-reset {
-    width: 44px; flex-shrink: 0; padding: 9px 0;
+    width: 44px; flex-shrink: 0; padding: 7px 0;
     border: none; cursor: pointer; border-radius: 12px;
     background: var(--btn-soft-bg); color: var(--ink);
     display: flex; align-items: center; justify-content: center;
@@ -1334,7 +1330,7 @@
   #dshop-reset:active { transform: scale(0.94) rotate(-30deg); }
   #dshop-back {
     display: flex; align-items: center; justify-content: center; gap: 6px;
-    flex: 1; padding: 9px 0;
+    flex: 1; padding: 7px 0;
     border: none; cursor: pointer; border-radius: 12px;
     background: var(--btn-soft-bg); color: var(--ink);
     font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
@@ -1458,3 +1454,23 @@
     will-change: transform, opacity;
   }
   .battle-cd-n.go { font-size: 56px; letter-spacing: 3px; color: #4fcac4; }
+
+  /* в бою фигуры статичны: оставляем только переходы потопления — мигать нечему */
+  #battle-my-board .ship-piece, #enemy-board .ship-piece {
+    transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+  }
+  /* отсчёт на каждом поле */
+  .board-cd {
+    position: absolute; inset: 0; z-index: 9;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px;
+    background: rgba(20, 16, 36, 0);
+    transition: background 0.3s ease;
+  }
+  .board-cd.on { background: rgba(20, 16, 36, 0.5); }
+  .board-cd-n {
+    font-family: 'Fredoka', sans-serif; font-weight: 700;
+    font-size: 44px; color: #fff;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.45);
+    will-change: transform, opacity;
+  }

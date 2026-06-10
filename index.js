@@ -313,6 +313,8 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
 
 function startPlacement() {
   arsBuy = null; arsDefense = null; arsShopPhase = false;
+  state = null;   // старый бой мёртв: его таймеры (aiTurn и пр.) дальше не действуют
+  document.querySelectorAll('.battle-cd, .board-cd, .skip-dim').forEach(e => e.remove());
   const dk = document.getElementById('dock'); if (dk) dk.classList.remove('shop-mode');
   const pb = document.getElementById('place-board'); if (pb) pb.classList.remove('def-mode');
   setTimeout(() => setPlayBtnLabel('Далее'), 0);
@@ -442,6 +444,7 @@ let dragInfo = null;
 
 function beginDrag(e, piece, source, el) {
   if (dragInfo) return;
+  if (arsShopPhase) return;   // во время расстановки арсенала корабли заблокированы
   e.preventDefault();
   dragInfo = { piece, source, el, startX: e.clientX, startY: e.clientY, moved: false };
   window.addEventListener('pointermove', onDragMove);
@@ -668,36 +671,51 @@ function resetWithAnimation() {
   setTimeout(startPlacement, 420);
 }
 
-// отсчёт перед боем: 3-2-1 → БОЙ! (JS-транзишены)
+// отсчёт перед боем: 3-2-1 на каждом поле; стрелка крутится и случайно выбирает, кто ходит первым
 function battleCountdown(done) {
-  const screen = document.getElementById('battle-screen');
-  if (!screen) { done(); return; }
-  const dim = document.createElement('div');
-  dim.className = 'battle-cd';
-  const num = document.createElement('div');
-  num.className = 'battle-cd-n';
-  dim.appendChild(num);
-  screen.appendChild(dim);
-  requestAnimationFrame(() => dim.classList.add('on'));
-  const seq = ['3', '2', '1', 'БОЙ!'];
+  const dims = [];
+  ['battle-my-board', 'enemy-board'].forEach(bid => {
+    const host = fxLayer(bid);
+    if (!host) return;
+    const d = document.createElement('div');
+    d.className = 'board-cd';
+    const num = document.createElement('div');
+    num.className = 'board-cd-n';
+    d.appendChild(num);
+    host.appendChild(d);
+    requestAnimationFrame(() => d.classList.add('on'));
+    dims.push({ d, num });
+  });
+  // стрелка мечется между сторонами, замедляясь, и останавливается на случайной
+  const first = Math.random() < 0.5 ? 'player' : 'enemy';
+  const flips = [180, 330, 480, 650, 850, 1100, 1450];
+  flips.forEach((t, i) => setTimeout(() => {
+    if (!state) return;
+    setTurnArrow(i % 2 === 0 ? 'enemy' : 'player');
+  }, t));
+  setTimeout(() => { if (state) setTurnArrow(first); }, 1850);
+  const seq = ['3', '2', '1'];
   let i = 0;
   const show = () => {
-    num.textContent = seq[i];
-    num.classList.toggle('go', seq[i] === 'БОЙ!');
-    num.style.transition = 'none';
-    num.style.opacity = '0';
-    num.style.transform = 'scale(1.6)';
+    dims.forEach(o => {
+      o.num.textContent = seq[i];
+      o.num.style.transition = 'none';
+      o.num.style.opacity = '0';
+      o.num.style.transform = 'scale(1.55)';
+    });
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      num.style.transition = 'opacity 0.18s ease, transform 0.5s cubic-bezier(.2,.9,.3,1)';
-      num.style.opacity = '1';
-      num.style.transform = 'scale(1)';
+      dims.forEach(o => {
+        o.num.style.transition = 'opacity 0.16s ease, transform 0.48s cubic-bezier(.2,.9,.3,1)';
+        o.num.style.opacity = '1';
+        o.num.style.transform = 'scale(1)';
+      });
     }));
     i++;
     if (i < seq.length) setTimeout(show, 700);
     else setTimeout(() => {
-      dim.classList.remove('on');
-      setTimeout(() => { dim.remove(); done(); }, 320);
-    }, 620);
+      dims.forEach(o => o.d.classList.remove('on'));
+      setTimeout(() => { dims.forEach(o => o.d.remove()); done(first); }, 330);
+    }, 640);
   };
   show();
 }
@@ -736,7 +754,12 @@ function startBattle() {
   turnAngle = 0; turnSide = null; turnLastFlip = 0;   // сброс инерции стрелки
   setTurnArrow('player');
   state.cd = true;                      // отсчёт: ввод заблокирован
-  battleCountdown(() => { if (state) state.cd = false; });
+  battleCountdown(first => {
+    if (!state) return;
+    state.cd = false;
+    state.turn = first;
+    if (first === 'enemy') setTimeout(() => { if (state && !state.over) aiTurn(); }, 550);
+  });
 }
 function renderBattleBoards() {
   const myBoard = document.getElementById('battle-my-board');
@@ -942,7 +965,7 @@ function onEnemyCellClick(r, c) {
   if (state.enemy.board[r][c].shot) return;
   const res = shootEnemyCell(r, c);
   if (res === 'hit' || res === 'repeat') return;   // попал — ходи снова
-  if (res === 'mine') { state.skipPlayer = true; showSkipDim('enemy-board'); }   // подорвался на поле противника — затемнение там
+  if (res === 'mine') { state.skipPlayer = true; skipDimOn('enemy-board'); }   // подорвался на поле противника — затемнение там до пропуска
   passTurnToEnemy();
 }
 function allSunk(side) { return side.ships.every(s => s.sunk); }
@@ -1164,7 +1187,7 @@ function aiTurn() {
   const res = aiShootPlayerCell(target.r, target.c);
   if (res === 'end') return;
   if (res === 'hit') { setTimeout(aiTurn, 950); return; }
-  if (res === 'mine') { state.skipEnemy = true; showSkipDim('battle-my-board'); }   // ИИ подорвался на твоём поле — затемнение там
+  if (res === 'mine') { state.skipEnemy = true; skipDimOn('battle-my-board'); }   // ИИ подорвался на твоём поле — до его пропуска
   passTurnToPlayer();
 }
 
@@ -1292,6 +1315,9 @@ function arsRandMine() {
 // плавное превращение дока «твои фигуры» ↔ «арсенал»: FLIP по высоте + фейды контента
 function arsDockMorph(toShop, label) {
   const dock = document.getElementById('dock');
+  if (dock._morphing) return;
+  dock._morphing = true;
+  setTimeout(() => { dock._morphing = false; }, 700);
   const out = toShop ? [document.getElementById('dock-title'), document.getElementById('dock-pieces')] : [document.getElementById('dock-shop')];
   const inn = toShop ? [document.getElementById('dock-shop')] : [document.getElementById('dock-title'), document.getElementById('dock-pieces')];
   out.forEach(el => { if (el) { el.style.transition = 'opacity 0.24s ease'; el.style.opacity = '0'; } });
@@ -1573,15 +1599,22 @@ function arsRenderMyDefense() {
   // щиты в бою невидимы (видны только при срабатывании); мины показываем
   arsRenderDefOverlays('battle-my-board', [], state.ars.player.mines);
 }
-function showSkipDim(boardId, done) {
+// затемнение «пропуск хода»: включается при подрыве и висит, пока пропуск не израсходован
+function skipDimOn(boardId) {
+  skipDimOff(boardId);
   const boardEl = document.getElementById(boardId);
   const d = document.createElement('div');
   d.className = 'skip-dim';
   d.textContent = 'пропуск хода';
   (fxLayer(boardId) || boardEl).appendChild(d);
   requestAnimationFrame(() => d.classList.add('on'));
-  setTimeout(() => d.classList.remove('on'), 1150);
-  setTimeout(() => { d.remove(); if (done) done(); }, 1500);
+}
+function skipDimOff(boardId) {
+  const sel = boardId ? '#' + boardId + ' .skip-dim' : '.skip-dim';
+  document.querySelectorAll(sel).forEach(d => {
+    d.classList.remove('on');
+    setTimeout(() => d.remove(), 450);
+  });
 }
 
 // --- предпоказ удара (синяя зона) + стрельба по отпусканию пальца ---
@@ -1754,7 +1787,7 @@ function arsPlayerUse(r, c) {
       if (!state.enemy.board[rr][cc].shot) pool.push({ r: rr, c: cc });
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     animBigStrike('enemy-board', r0 + 1, c0 + 1, pool.slice(0, 3), shootEnemyCell,
-      () => { state.skipPlayer = true; showSkipDim('enemy-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
+      () => { state.skipPlayer = true; skipDimOn('enemy-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
       () => { if (!state.over) passTurnToEnemy(); });
     return;
   }
@@ -1765,7 +1798,7 @@ function arsPlayerUse(r, c) {
     const targets = [];
     for (let cc = 0; cc < SIZE; cc++) if (!state.enemy.board[r][cc].shot) targets.push({ r, c: cc });
     animLineVolley('enemy-board', targets, shootEnemyCell,
-      () => { state.skipPlayer = true; showSkipDim('enemy-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
+      () => { state.skipPlayer = true; skipDimOn('enemy-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
       () => { if (!state.over) passTurnToEnemy(); });
     return;
   }
@@ -1815,7 +1848,7 @@ function aiUseBig() {
     if (!state.player.board[rr][cc].shot) pool.push({ r: rr, c: cc });
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   animBigStrike('battle-my-board', z.r0 + 1, z.c0 + 1, pool.slice(0, 3), aiShootPlayerCell,
-    () => { state.skipEnemy = true; showSkipDim('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
+    () => { state.skipEnemy = true; skipDimOn('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
     () => { if (!state.over) passTurnToPlayer(); });
 }
 function aiUseLine() {
@@ -1830,7 +1863,7 @@ function aiUseLine() {
   const targets = [];
   for (let c = 0; c < SIZE; c++) if (!state.player.board[bestR][c].shot) targets.push({ r: bestR, c });
   animLineVolley('battle-my-board', targets, aiShootPlayerCell,
-    () => { state.skipEnemy = true; showSkipDim('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
+    () => { state.skipEnemy = true; skipDimOn('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
     () => { if (!state.over) passTurnToPlayer(); });
 }
 function arsAiAutoDefense(counts) {
@@ -1923,7 +1956,7 @@ function flyBomb(boardId, r, c, fromRight, cb) {
   w.style.transform = 'translate(' + sx + 'px,' + p.y + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
   document.body.appendChild(w);
-  const T = 640;
+  const T = 820;
   const arc = Math.round(p.w * 2.6);                 // высота дуги тоже от клетки
   requestAnimationFrame(() => {
     w.style.transition = 'transform ' + T + 'ms linear';
@@ -1958,7 +1991,7 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
   w.style.transform = 'translate(' + sx + 'px,' + splitY + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
   document.body.appendChild(w);
-  const T1 = 460;
+  const T1 = 600;
   const arc = Math.round(pc.w * 2.6);
   requestAnimationFrame(() => {
     w.style.transition = 'transform ' + T1 + 'ms linear';
@@ -1982,7 +2015,7 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
       m.appendChild(mi);
       m.style.transform = 'translate(' + splitX + 'px,' + peakY + 'px)';
       document.body.appendChild(m);
-      const D = 250 + i * 70;
+      const D = 330 + i * 80;
       requestAnimationFrame(() => {
         m.style.transition = 'transform ' + D + 'ms cubic-bezier(.45,.1,.75,.5)';
         m.style.transform = 'translate(' + (tp ? tp.x : splitX) + 'px,' + (tp ? tp.y : splitY) + 'px)';
@@ -2086,17 +2119,19 @@ function passTurnToEnemy() {
   document.getElementById('enemy-board').classList.add('locked');
   setTimeout(() => {
     if (!state || state.over) return;
-    if (state.skipEnemy) {   // ход ИИ пропущен (он подорвался — dim уже показан)
+    if (state.skipEnemy) {   // ход ИИ пропущен — снимаем его затемнение и возвращаем ход
       state.skipEnemy = false;
-      setTimeout(() => { if (state && !state.over) passTurnToPlayer(); }, 420);
+      skipDimOff('battle-my-board');
+      setTimeout(() => { if (state && !state.over) passTurnToPlayer(); }, 480);
     } else aiTurn();
   }, 750);
 }
 function passTurnToPlayer() {
   if (!state || state.over) return;
-  if (state.skipPlayer) {   // твой ход пропущен (ты подорвался — dim уже показан)
+  if (state.skipPlayer) {   // твой ход пропущен — снимаем затемнение, ИИ ходит снова
     state.skipPlayer = false;
-    setTimeout(() => { if (state && !state.over) aiTurn(); }, 650);
+    skipDimOff('enemy-board');
+    setTimeout(() => { if (state && !state.over) aiTurn(); }, 700);
     return;   // ход остаётся у ИИ
   }
   state.turn = 'player'; setTurnArrow('player');
@@ -2167,6 +2202,7 @@ document.getElementById('overlay-back').addEventListener('click', () => {
 });
 document.getElementById('play-btn').addEventListener('click', () => {
   if (!placement) return;
+  if (document.getElementById('dock')._morphing) return;   // не дёргаем во время морфа
   if (arsShopPhase) {   // «В бой» из мини-магазина
     if (arsBuy && ARS_ORDER.every(k => arsBuy[k] === 0)) { arsBuy = null; arsDefense = null; }
     arsShopExit(false);   // без возврата — куплено остаётся
@@ -2188,6 +2224,7 @@ function syncMenuVersion(open) {
 }
 function showMenu() {
   syncMenuVersion(true);
+  if (state) state.over = true;   // выход в меню глушит таймеры боя
   // прячем игровой UI, чтобы под меню ничего не мелькало
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   setGameUIHidden(true);
@@ -3068,7 +3105,8 @@ function snakeWaveColor(side, col) {
   (side._waveEls || []).forEach((el, i) => {
     el.style.transition = 'fill 0.6s ease, stroke 0.6s ease';
     el.style.transitionDelay = (i * step) + 'ms';
-    if (el.tagName && el.tagName.toLowerCase() === 'line') el.style.stroke = col;
+    const tag = el.tagName ? el.tagName.toLowerCase() : '';
+    if (tag === 'line' || tag === 'polyline') el.style.stroke = col;   // штриховые элементы (включая цельное тело)
     else el.style.fill = col;
   });
 }
@@ -3283,13 +3321,36 @@ function updateHunger(me) {
   }
 }
 
+// пульс истощения: тело на миг бледнеет — видно, что змейка слабеет
+function snakeStarvePulse(side) {
+  const g = side._inner; if (!g) return;
+  g.style.transition = 'opacity 0.16s ease';
+  g.style.opacity = '0.45';
+  setTimeout(() => { g.style.transition = 'opacity 0.3s ease'; g.style.opacity = '1'; }, 170);
+}
+// смерть от истощения: три мигания и обычная смерть
+function snakeStarveDeath(side) {
+  if (side.state !== 'alive') return;
+  side.state = 'starving';
+  const g = side._inner;
+  if (g) {
+    const seq = [[0, '0.25'], [180, '1'], [360, '0.25'], [540, '1'], [720, '0.25']];
+    seq.forEach(s => setTimeout(() => { if (g) { g.style.transition = 'opacity 0.15s ease'; g.style.opacity = s[1]; } }, s[0]));
+  }
+  setTimeout(() => {
+    if (!snakeState || side.state !== 'starving') return;
+    side.state = 'alive';   // snakeDeath сам переведёт в dying
+    if (g) g.style.opacity = '1';
+    snakeDeath(side);
+  }, 900);
+}
 function snakeTick() {
   if (!snakeState || !snakeState.running) return;
   const now = snakeNow();
   [snakeState.me, snakeState.ai].forEach(side => {
     if (side.state !== 'alive') return;
     const starving = side.hungerStart && (now - side.hungerStart) >= 5000 && (now - side.lastShrink) >= 1000;
-    if (starving && side.cells.length <= 2) { snakeDeath(side); return; }   // смерть от голода — до шага, без рывка вперёд
+    if (starving && side.cells.length <= 2) { snakeStarveDeath(side); return; }   // смерть от истощения — без шага, с миганием
     side.fromCells = side.cells.map(p => ({ r: p.r, c: p.c }));   // откуда плавно едем
     side.dir = (side.who === 'me') ? side.nextDir : aiPickDir(side);
     const res = snakeAdvance(side, side.dir);
@@ -3301,9 +3362,10 @@ function snakeTick() {
       if (side.who === 'me') { side.fruitsEaten++; snakeOnEat(side); }
       snakeDrawFruit(side, side._eaten);     // бёрст на месте съедения + новый фрукт с появлением
     }
-    if (!ate && starving) {                  // ужимание на 1 клетку/сек
+    if (!ate && starving) {                  // ужимание на 1 клетку/сек + пульс истощения
       side.lastShrink = now;
       side.cells.pop();
+      snakeStarvePulse(side);
     }
     side.tickAt = now;   // отрисовку с интерполяцией ведёт snakeRenderLoop
   });
@@ -3430,11 +3492,12 @@ function buildArenaField() {
   const holder = document.getElementById('arena-field-holder');
   const hb = holder ? holder.getBoundingClientRect() : { width: 0, height: 0 };
   if (hb.width > 0 && hb.height > 0) {
-    const cell = hb.width / ARENA_COLS;
-    ARENA_ROWS = Math.max(13, Math.min(20, Math.floor(hb.height / cell)));
+    const cell = (hb.width - 12) / ARENA_COLS;             // минус паддинг рамки
+    ARENA_ROWS = Math.max(13, Math.min(20, Math.floor((hb.height - 12) / cell)));
   } else ARENA_ROWS = 20;
-  host.style.aspectRatio = ARENA_COLS + ' / ' + ARENA_ROWS;
+  host.style.aspectRatio = '';
   const svg = svgEl('svg', { class: 'arena-svg', viewBox: '0 0 ' + ARENA_COLS + ' ' + ARENA_ROWS, preserveAspectRatio: 'xMidYMid meet' });
+  svg.style.aspectRatio = ARENA_COLS + ' / ' + ARENA_ROWS;   // svg сам держит пропорции — рамка без пустых полос
   // клип по границам поля: торус-клоны не видны за краями
   const defs = svgEl('defs', {});
   const cp = svgEl('clipPath', { id: 'arena-clip', clipPathUnits: 'userSpaceOnUse' });
@@ -3483,6 +3546,13 @@ function arenaInitPos(side, x, y, ang) {
   side.trail = [];
   for (let i = 0; i <= 80; i++)
     side.trail.push({ x: x - Math.cos(ang) * i * 0.2, y: y - Math.sin(ang) * i * 0.2 });
+}
+function hexDarken(hex, f) {   // затемнение hex-цвета на долю f (0..1)
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const d = v => Math.max(0, Math.round(v * (1 - f)));
+  return '#' + ((d(n >> 16 & 255) << 16) | (d(n >> 8 & 255) << 8) | d(n & 255)).toString(16).padStart(6, '0');
 }
 function arenaSetColor(side, sc, sch) {
   side.gBody.style.setProperty('--sc', sc);
@@ -3661,6 +3731,28 @@ function arenaLoop() {
       const aiHit = headOn || hit(aw[0], mw, true);
       if (meHit) arenaDeath(me);
       if (aiHit) arenaDeath(ai);
+      // самоукус: врезался в собственный хвост — съедает себя до минимума (кругами не отсидишься)
+      const selfBite = (side, pts) => {
+        if (side.state !== 'alive' || side.nSeg <= 3) return;
+        if (side._biteCd && now - side._biteCd < 1200) return;   // иммунитет после укуса
+        const skip = Math.ceil(2.2 / ARENA_SEG);                 // ближние к голове сегменты не считаем
+        for (let i = skip; i < pts.length; i++) {
+          if (arenaDist(pts[0].x, pts[0].y, pts[i].x, pts[i].y) < ARENA_HITR * 0.85) {
+            side._biteCd = now;
+            side.nSeg = 2;                                       // съел себя до огрызка
+            const g = side._inner;
+            if (g) {
+              g.style.transition = 'opacity 0.12s ease';
+              g.style.opacity = '0.4';
+              setTimeout(() => { if (g) { g.style.transition = 'opacity 0.25s ease'; g.style.opacity = '1'; } }, 130);
+            }
+            try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
+            break;
+          }
+        }
+      };
+      if (!meHit) selfBite(me, mw);
+      if (!aiHit) selfBite(ai, aw);
     }
   } else {
     if (st.me.state === 'alive') arenaPaintFree(st.me);
@@ -3702,9 +3794,12 @@ function arenaDeath(side) {
     const sp = arenaSafeSpawn(opp);
     arenaInitPos(side, sp.x, sp.y, sp.ang);
     side.hitEyes = false;
-    arenaSetColor(side, side.base.sc, side.base.sch);   // вернуть базовый цвет
+    side.deaths = (side.deaths || 0) + 1;
+    const f = Math.min(0.45, side.deaths * 0.16);       // с каждой смертью цвет темнее
+    arenaSetColor(side, hexDarken(side.base.sc, f), hexDarken(side.base.sch, f));
     side.state = 'alive';
     arenaPaintFree(side);
+    snakeWaveColor(side, '');   // сброс инлайновых цветов — тело берёт новый (потемневший) базовый
   }, 1100);
 }
 function arenaCheckOver() {
