@@ -290,16 +290,17 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
       if (art) art.remove();
     }
     // только что потоплено — мягкое появление блока
-    if (p.sunk && !wasSunk && !isNew) piece.classList.add('sink-pop');
-    if (p.sunk && isNew) piece.classList.add('sink-pop');
+    const oneShot = (cls, ms) => { piece.classList.add(cls); setTimeout(() => piece.classList.remove(cls), ms); };   // одноразовые анимации НЕ висят: перезапуски Safari не вспыхнут ими заново
+    if (p.sunk && !wasSunk && !isNew) oneShot('sink-pop', 460);
+    if (p.sunk && isNew) oneShot('sink-pop', 460);
 
     if (isNew || instant) {
       piece.style.transition = 'none';
       piece.style.left = L + 'px'; piece.style.top = T + 'px';
       piece.style.width = W + 'px'; piece.style.height = H + 'px';
       requestAnimationFrame(() => { piece.style.transition = ''; });
-      if (isAnimated) piece.classList.add(animType === 'rotate' ? 'lift-rotate' : 'place-in');
-      else if (isNew && !p.sunk) piece.classList.add('place-in');
+      if (isAnimated) oneShot(animType === 'rotate' ? 'lift-rotate' : 'place-in', 460);
+      else if (isNew && !p.sunk) oneShot('place-in', 260);
     } else {
       piece.style.left = L + 'px'; piece.style.top = T + 'px';
       piece.style.width = W + 'px'; piece.style.height = H + 'px';
@@ -868,7 +869,10 @@ function setTurnArrow(who) {
 function cellSettle(el) {
   if (!el) return;
   clearTimeout(el._stlT);
-  el._stlT = setTimeout(() => el.classList.add('stl'), 600);
+  el._stlT = setTimeout(() => {
+    el.classList.add('stl');
+    el.style.animation = 'none';   // дублируем класс инлайном — самой клетке тоже нечего перезапускать
+  }, 720);
 }
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -888,9 +892,12 @@ function sinkShipSmooth(boardId, side, ship) {
   cells.forEach((pos, i) => {
     const el = getCellEl(boardId, pos.r, pos.c);
     if (!el) return;
-    // переводим в sunk (фон и маркер совпадают с hit — без скачка)
+    // переводим в sunk (фон и маркер совпадают с hit — без скачка); перелив — локальным transition
+    el.style.transition = 'background 1.3s cubic-bezier(.33,0,.2,1), box-shadow 0.55s cubic-bezier(.34,1.45,.5,1) 0.2s';
     el.classList.add('sunk');
     cellSettle(el);
+    clearTimeout(el._snkT);
+    el._snkT = setTimeout(() => { el.style.transition = ''; }, i * step + 2100);   // перелив отыграл — клетка статична
     el.classList.remove('hit');
     const applyFilled = () => {
       el.classList.add('filled');
@@ -914,6 +921,7 @@ function sinkShipSmooth(boardId, side, ship) {
     if (pieceEl) {
       const fadeDelay = cells.length * step * 0.4;
       setTimeout(() => {
+        pieceEl.style.transition = 'opacity 0.9s ease, transform 0.9s ease';   // локально: у боевых фигур нет CSS-переходов
         pieceEl.classList.add('fade-out');
         setTimeout(() => pieceEl.remove(), 950);   // точечно: остальные фигуры не пересоздаются и не мигают
       }, fadeDelay);
@@ -2498,84 +2506,93 @@ function hexA(hex, a) {
 function frameDecoMarkup(ri) {
   const t = ri.tier || 1, c1 = ri.c1, c2 = ri.c2;
   const P = [];
+  // все украшения рисуются ВНУТРИ рамки (координаты 0..100): ничто не обрезается окнами и не вылезает на соседей
   const ring = (inset, sw, col, op) =>
     '<rect x="' + inset + '" y="' + inset + '" width="' + (100 - 2 * inset) + '" height="' + (100 - 2 * inset)
-    + '" rx="' + (27 - inset * 0.5) + '" fill="none" stroke="' + col + '" stroke-width="' + sw + '" opacity="' + (op || 1) + '"/>';
+    + '" rx="' + Math.max(6, 27 - inset * 0.9) + '" fill="none" stroke="' + col + '" stroke-width="' + sw + '" opacity="' + (op || 1) + '"/>';
+  const rhomb = (x, y, s, col) => '<rect x="' + (x - s / 2) + '" y="' + (y - s / 2) + '" width="' + s + '" height="' + s
+    + '" rx="' + (s * 0.22).toFixed(2) + '" transform="rotate(45 ' + x + ' ' + y + ')" fill="' + col + '"/>';
+  const spark = (x, y, s, col) => {
+    const q = (s * 0.24).toFixed(2);
+    return '<path d="M ' + x + ' ' + (y - s) + ' Q ' + (x + +q) + ' ' + (y - +q) + ' ' + (x + s) + ' ' + y
+      + ' Q ' + (x + +q) + ' ' + (y + +q) + ' ' + x + ' ' + (y + s)
+      + ' Q ' + (x - +q) + ' ' + (y + +q) + ' ' + (x - s) + ' ' + y
+      + ' Q ' + (x - +q) + ' ' + (y - +q) + ' ' + x + ' ' + (y - s) + ' Z" fill="' + col + '"/>';
+  };
   switch (ri.cat) {
-    case 'bronze': {   // ромбики-заклёпки на гранях (прижаты к рамке)
+    case 'bronze': {   // ромбики-заклёпки на гранях, внутри рамки
       const s = 4.5 + t * 0.8;
-      const pts = [[2, 50], [98, 50]]; if (t >= 2) pts.push([50, 2], [50, 98]);
-      pts.forEach(p => P.push('<rect x="' + (p[0] - s / 2) + '" y="' + (p[1] - s / 2) + '" width="' + s + '" height="' + s
-        + '" rx="1.4" transform="rotate(45 ' + p[0] + ' ' + p[1] + ')" fill="' + c2 + '"/>'));
+      const pts = [[7, 50], [93, 50]]; if (t >= 2) pts.push([50, 7], [50, 93]);
+      pts.forEach(p => P.push(rhomb(p[0], p[1], s, c2)));
+      if (t >= 3) [[18, 18], [82, 18], [18, 82], [82, 82]].forEach(p => P.push(rhomb(p[0], p[1], 3.2, c2)));
       break;
     }
-    case 'iron': {     // клёпки по углам, на самой рамке
+    case 'iron': {     // клёпки по углам и граням
       const r = 3.2 + t * 0.7;
-      const pos = [[16, 16], [84, 16], [16, 84], [84, 84]];
-      if (t >= 2) pos.push([50, 2], [50, 98], [2, 50], [98, 50]);
+      const pos = [[17, 17], [83, 17], [17, 83], [83, 83]];
+      if (t >= 2) pos.push([50, 7], [50, 93], [7, 50], [93, 50]);
       pos.forEach(p => P.push('<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + r + '" fill="' + c2 + '"/>'
         + '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (r * 0.42).toFixed(2) + '" fill="rgba(255,255,255,0.55)"/>'));
       break;
     }
-    case 'silver': {   // изящные тонкие линии впритык к рамке (и по её лицевой стороне)
-      P.push(ring(-2.5, 2, c1, 0.9));
-      if (t >= 2) P.push(ring(-5, 1.3, '#ffffff', 0.5));
-      if (t >= 3) P.push(ring(5.5, 1.1, '#ffffff', 0.55));
+    case 'silver': {   // изящные тонкие кольца, все внутри
+      P.push(ring(3, 1.6, c1, 0.9));
+      if (t >= 2) P.push(ring(7, 1.1, '#ffffff', 0.5));
+      if (t >= 3) P.push(ring(11, 1, '#ffffff', 0.55));
       break;
     }
     case 'gold': {     // фигурные угловые накладки по контуру рамки
       const arm = 11 + t * 4, sw = 6 + t * 0.8;
-      const capD = 'M 2 ' + (2 + arm) + ' L 2 29 Q 2 2 29 2 L ' + (2 + arm) + ' 2';
+      const capD = 'M 4 ' + (4 + arm) + ' L 4 29 Q 4 4 29 4 L ' + (4 + arm) + ' 4';
       for (const rot of [0, 90, 180, 270]) {
         P.push('<path d="' + capD + '" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
         P.push('<path d="' + capD + '" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="' + (sw * 0.3).toFixed(2) + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
       }
       break;
     }
-    case 'diamond': {  // срезы-фасеты, прижатые к углам
-      const off = 28 + t * 2, sw = 4 + t;
-      const cut = rot => '<line x1="-2" y1="' + off + '" x2="' + off + '" y2="-2" stroke="' + c1
+    case 'diamond': {  // элегантные скруглённые дуги в углах (вместо палок)
+      const sw = 3.4 + t * 0.7;
+      const arc = rot => '<path d="M 8 31 Q 8 8 31 8" fill="none" stroke="' + c1
         + '" stroke-width="' + sw + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
-      P.push(cut(0), cut(90), cut(180), cut(270));
-      if (t >= 3) {
-        const cut2 = rot => '<line x1="4" y1="' + (off - 6) + '" x2="' + (off - 6) + '" y2="4" stroke="' + c2
-          + '" stroke-width="1.8" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
-        P.push(cut2(0), cut2(90), cut2(180), cut2(270));
+      P.push(arc(0), arc(90), arc(180), arc(270));
+      if (t >= 2) {
+        const arc2 = rot => '<path d="M 14.5 33 Q 14.5 14.5 33 14.5" fill="none" stroke="' + c2
+          + '" stroke-width="1.7" stroke-linecap="round" opacity="0.9" transform="rotate(' + rot + ' 50 50)"/>';
+        P.push(arc2(0), arc2(90), arc2(180), arc2(270));
       }
+      if (t >= 3) [[22, 22], [78, 22], [22, 78], [78, 78]].forEach(p => P.push(rhomb(p[0], p[1], 4, '#ffffff')));
       break;
     }
     case 'emerald': {  // ступенчатые скобы у углов, компактные
       const sw = 3.5 + t * 0.8, a = 14 + t * 2.5;
-      const br = rot => '<path d="M -2 ' + a + ' H ' + (a * 0.45).toFixed(1) + ' V ' + (a * 0.45).toFixed(1) + ' H ' + a
-        + ' V -2" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
+      const br = rot => '<path d="M 4 ' + a + ' H ' + (a * 0.5).toFixed(1) + ' V ' + (a * 0.5).toFixed(1) + ' H ' + a
+        + ' V 4" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
       P.push(br(0), br(90), br(180), br(270));
       break;
     }
-    case 'ruby': {     // аккуратные шипы-маркизы, едва выступают
-      const len = 4 + t, hw = 5 + t * 0.5;
-      const sp = rot => '<polygon points="' + (50 - hw) + ',3 ' + (50 + hw) + ',3 50,' + (-len)
+    case 'ruby': {     // маркизы-огранки, лежат на гранях внутри
+      const w = 6 + t, h = 3 + t * 0.7;
+      const mq = rot => '<polygon points="' + (50 - w) + ',7 50,' + (7 - h * 0.55).toFixed(1) + ' ' + (50 + w) + ',7 50,' + (7 + h)
         + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
-      P.push(sp(0), sp(90), sp(180), sp(270));
-      if (t >= 3) {
-        const sp2 = rot => '<polygon points="47.5,1.5 52.5,1.5 50,-3.5" fill="' + c2 + '" transform="rotate(' + (rot + 45) + ' 50 50)"/>';
-        P.push(sp2(0), sp2(90), sp2(180), sp2(270));
-      }
+      P.push(mq(0), mq(90), mq(180), mq(270));
+      if (t >= 3) [[19, 19], [81, 19], [19, 81], [81, 81]].forEach(p => P.push(rhomb(p[0], p[1], 3.6, c2)));
       break;
     }
-    case 'brilliant': {// сияющие компактные шипы из углов
-      const len = 4 + t;
-      const k = rot => '<polygon points="9,2 2,9 ' + (-len) + ',' + (-len) + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
-      P.push(k(0), k(90), k(180), k(270));
-      if (t >= 2) {
-        const m = rot => '<polygon points="46.5,1.5 53.5,1.5 50,' + (-3 - t) + '" fill="' + c2 + '" transform="rotate(' + rot + ' 50 50)"/>';
-        P.push(m(0), m(90), m(180), m(270));
-      }
+    case 'brilliant': {// искры-блики в углах, сияние внутрь
+      const s = 5.5 + t * 1.3;
+      [[18, 18], [82, 18], [18, 82], [82, 82]].forEach(p => {
+        P.push(spark(p[0], p[1], s, c1));
+        P.push(spark(p[0], p[1], s * 0.45, 'rgba(255,255,255,0.85)'));
+      });
+      if (t >= 2) [[50, 9], [50, 91], [9, 50], [91, 50]].forEach(p => P.push(spark(p[0], p[1], 3.4 + t * 0.5, c2)));
       break;
     }
-    case 'absolute': { // корона коротких лучей всех цветов
+    case 'absolute': { // орбита самоцветов: двойное кольцо + четыре цвета по граням и углам
       const cols = ['#ff5d8f', '#ffbf4d', '#4fcac4', '#6c80f5'];
-      for (let i = 0; i < 8; i++)
-        P.push('<polygon points="46,1.5 54,1.5 50,-7" fill="' + cols[i % 4] + '" transform="rotate(' + (i * 45) + ' 50 50)"/>');
+      P.push(ring(4.5, 1.3, 'rgba(255,255,255,0.65)', 1));
+      P.push(ring(9, 0.9, 'rgba(255,255,255,0.3)', 1));
+      [[50, 7], [93, 50], [50, 93], [7, 50]].forEach((p, i) => P.push(rhomb(p[0], p[1], 5.4, cols[i])));
+      [[19, 19], [81, 19], [81, 81], [19, 81]].forEach((p, i) => P.push(spark(p[0], p[1], 4.2, cols[(i + 1) % 4])));
       break;
     }
   }
@@ -3591,7 +3608,7 @@ function arenaDist(ax, ay, bx, by) {   // расстояние с учётом �
 
 function buildArenaField() {
   const host = document.getElementById('arena-field');
-  host.innerHTML = '';
+  const oldSvg = host.querySelector('.arena-svg'); if (oldSvg) oldSvg.remove();   // дим отсчёта живёт внутри поля — не сносим
   // поле во всю ширину; рядов — сколько помещается по высоте (клетки крупные)
   const holder = document.getElementById('arena-field-holder');
   const hb = holder ? holder.getBoundingClientRect() : { width: 0, height: 0 };

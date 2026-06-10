@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="index.css?v=67">
+<link rel="stylesheet" href="index.css?v=69">
 <style>
   /* критический инлайн-стиль лоадера: применяется с первого кадра, до загрузки index.css,
      поэтому меню не успевает мелькнуть */
@@ -34,7 +34,7 @@
 </head>
 <body>
 <div id="loader"><div class="loader-spin"></div></div>
-<span id="app-version">v1.8.6.0</span>
+<span id="app-version">v1.9.0.0</span>
 <div id="game">
   <div id="particles"></div>
 
@@ -149,7 +149,7 @@
         </div>
       </div>
 
-      <div class="custom-card">
+      <div class="custom-card" style="display:none">
         <span class="custom-section-label">Стиль фигур</span>
         <div id="style-toggle">
           <button class="style-opt" id="style-classic" data-style="classic">
@@ -289,8 +289,9 @@
         <span class="snake-lives arena-hearts" id="arena-me-hearts" style="--hc:#4fcac4"></span>
       </div>
       <div id="arena-field-holder">
-        <div id="arena-field"></div>
-        <div class="snake-dim" id="arena-dim"><span class="snake-num" id="arena-num"></span></div>
+        <div id="arena-field">
+          <div class="snake-dim" id="arena-dim"><span class="snake-num" id="arena-num"></span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -313,6 +314,6 @@
   </div>
 </div>
 
-<script src="index.js?v=67"></script>
+<script src="index.js?v=69"></script>
 </body>
 </html>

@@ -220,7 +220,7 @@
     aspect-ratio: 1 / 1; position: relative; z-index: 1;
     border-radius: 7px; background: var(--cell);
     box-shadow: inset 0 0 0 1px var(--grid-line);
-    transition: transform 0.08s, background 0.4s ease;
+    transition: transform 0.08s;   /* НИКАКИХ постоянных bg-переходов: iOS перезапускает их при любых вставках в поле */
     overflow: hidden;
   }
 
@@ -425,9 +425,7 @@
   .cell.sunk { z-index: 5; border-radius: 5px;
     background: var(--hit);
     box-shadow: 0 0 0 1.5px var(--hit), 0 0 0 0 transparent, 0 0 0 0 transparent, 0 0 0 0 transparent, 0 0 0 0 transparent;
-    transition: background 1.3s cubic-bezier(.33,0,.2,1),
-                box-shadow 0.55s cubic-bezier(.34,1.45,.5,1) 0.2s;
-    will-change: background, box-shadow; }
+    /* перелив в filled — локальным инлайн-transition в момент потопления */ }
   .cell.sunk::after {
     content: ''; position: absolute; top: 50%; left: 50%;
     width: 50%; height: 50%; background: var(--cell);
@@ -928,6 +926,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   #arena-field {
+    position: relative;   /* дим отсчёта растягивается ровно по полю */
     width: 100%;
     margin: auto; box-sizing: border-box;
     border-radius: 16px; padding: 6px; background: var(--grid-bg);
@@ -1457,7 +1456,7 @@
 
   /* в бою фигуры статичны: оставляем только переходы потопления — мигать нечему */
   #battle-my-board .ship-piece, #enemy-board .ship-piece {
-    transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+    transition: none;   /* фигуры в бою статичны: фейд потопления — инлайном */
   }
   /* отсчёт на каждом поле */
   .board-cd {
@@ -1485,3 +1484,6 @@
   /* статичный финальный вид крестов промаха: после отключения анимации (stl) вид не меняется */
   .cell.miss::before { transform: translate(-50%,-50%) rotate(45deg); opacity: 0.85; }
   .cell.miss::after  { transform: translate(-50%,-50%) rotate(-45deg); opacity: 0.85; }
+
+  /* декор рамок рисуется внутри — слайд дополнительно страхует от выхода за границы */
+  .pf-slide { overflow: hidden; }
