@@ -1373,38 +1373,101 @@ function hexA(hex, a) {
   const n = parseInt(f, 16);
   return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
 }
-// Узор рамки — у каждой категории свой (минималистичные CSS-градиенты поверх цвета),
-// тир усиливает: контраст узора, толщина, свечение, у II–III внутреннее светлое кольцо
-function framePattern(cat, a) {
-  const w = 'rgba(255,255,255,', d = 'rgba(0,0,0,';
-  switch (cat) {
-    case 'bronze':    // тонкие диагональные штрихи
-      return 'repeating-linear-gradient(45deg,' + w + a + ') 0 1.5px,transparent 1.5px 6px)';
-    case 'iron':      // вертикальные «клёпки»-полосы
-      return 'repeating-linear-gradient(90deg,' + d + a + ') 0 2px,transparent 2px 7px)';
-    case 'silver':    // глянцевый блик сверху
-      return 'linear-gradient(160deg,' + w + (a * 1.6).toFixed(3) + ') 0%,transparent 38%,' + d + a + ') 100%)';
-    case 'gold':      // мягкие лучи
-      return 'repeating-conic-gradient(from 20deg,' + w + a + ') 0deg 13deg,transparent 13deg 45deg)';
-    case 'diamond':   // фасеты-ромбы
-      return 'repeating-linear-gradient(45deg,' + w + a + ') 0 1.5px,transparent 1.5px 8px),repeating-linear-gradient(-45deg,' + w + a + ') 0 1.5px,transparent 1.5px 8px)';
-    case 'emerald':   // широкие грани-шевроны
-      return 'repeating-linear-gradient(135deg,' + w + a + ') 0 3px,transparent 3px 10px)';
-    case 'ruby':      // кольца-огранка из центра
-      return 'repeating-radial-gradient(circle at 50% 50%,' + w + a + ') 0 1.5px,transparent 1.5px 7px)';
-    case 'brilliant': // искристая сетка
-      return 'repeating-linear-gradient(30deg,' + w + a + ') 0 1px,transparent 1px 5px),repeating-linear-gradient(150deg,' + w + a + ') 0 1px,transparent 1px 5px)';
-    default: return '';
+// Фигурный декор рамки: у каждой категории своя ФОРМА (шипы, накладки, клёпки, срезы),
+// тир усиливает размер/количество элементов. Рисуется SVG-слоем вокруг рамки.
+function frameDecoMarkup(ri) {
+  const t = ri.tier || 1, c1 = ri.c1, c2 = ri.c2;
+  const P = [];
+  const ring = (inset, sw, col, op) =>
+    '<rect x="' + inset + '" y="' + inset + '" width="' + (100 - 2 * inset) + '" height="' + (100 - 2 * inset)
+    + '" rx="' + (27 - inset * 0.5) + '" fill="none" stroke="' + col + '" stroke-width="' + sw + '" opacity="' + (op || 1) + '"/>';
+  switch (ri.cat) {
+    case 'bronze': {   // ромбики-заклёпки по сторонам
+      const s = 5 + t;
+      const pts = [[2, 50], [98, 50]]; if (t >= 2) pts.push([50, 2], [50, 98]);
+      pts.forEach(p => P.push('<rect x="' + (p[0] - s / 2) + '" y="' + (p[1] - s / 2) + '" width="' + s + '" height="' + s
+        + '" rx="1.6" transform="rotate(45 ' + p[0] + ' ' + p[1] + ')" fill="' + c2 + '"/>'));
+      break;
+    }
+    case 'iron': {     // клёпки по углам (с тиром больше и по центрам граней)
+      const r = 3.6 + t * 0.9;
+      const pos = [[16, 16], [84, 16], [16, 84], [84, 84]];
+      if (t >= 2) pos.push([50, 2], [50, 98], [2, 50], [98, 50]);
+      pos.forEach(p => P.push('<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + r + '" fill="' + c2 + '"/>'
+        + '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (r * 0.42).toFixed(2) + '" fill="rgba(255,255,255,0.55)"/>'));
+      break;
+    }
+    case 'silver': {   // изящные внешние кольца (с тиром — больше колец)
+      P.push(ring(-5, 2.8, c1, 1));
+      if (t >= 2) P.push(ring(-9.5, 1.8, '#ffffff', 0.55));
+      if (t >= 3) P.push(ring(-13, 1.2, c1, 0.8));
+      break;
+    }
+    case 'gold': {     // фигурные угловые накладки (длиннее и толще с тиром)
+      const arm = 13 + t * 5, sw = 7 + t;
+      const capD = 'M 2 ' + (2 + arm) + ' L 2 29 Q 2 2 29 2 L ' + (2 + arm) + ' 2';
+      for (const rot of [0, 90, 180, 270]) {
+        P.push('<path d="' + capD + '" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
+        P.push('<path d="' + capD + '" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="' + (sw * 0.32).toFixed(2) + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>');
+      }
+      break;
+    }
+    case 'diamond': {  // срезы-фасеты поверх углов
+      const off = 30 + (t - 1) * 2, sw = 4.5 + t;
+      const cut = rot => '<line x1="-5" y1="' + off + '" x2="' + off + '" y2="-5" stroke="' + c1
+        + '" stroke-width="' + sw + '" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
+      P.push(cut(0), cut(90), cut(180), cut(270));
+      if (t >= 3) {
+        const cut2 = rot => '<line x1="-10" y1="' + (off - 10) + '" x2="' + (off - 10) + '" y2="-10" stroke="' + c2
+          + '" stroke-width="2" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
+        P.push(cut2(0), cut2(90), cut2(180), cut2(270));
+      }
+      break;
+    }
+    case 'emerald': {  // ступенчатые скобы (изумрудная огранка)
+      const sw = 4 + t, a = 16 + t * 3;
+      const br = rot => '<path d="M -4 ' + a + ' H ' + (a * 0.45).toFixed(1) + ' V ' + (a * 0.45).toFixed(1) + ' H ' + a
+        + ' V -4" fill="none" stroke="' + c2 + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round" transform="rotate(' + rot + ' 50 50)"/>';
+      P.push(br(0), br(90), br(180), br(270));
+      break;
+    }
+    case 'ruby': {     // острые шипы-маркизы по сторонам (длиннее с тиром)
+      const len = 8 + t * 3, hw = 5.5 + t * 0.5;
+      const sp = rot => '<polygon points="' + (50 - hw) + ',3 ' + (50 + hw) + ',3 50,' + (-len)
+        + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
+      P.push(sp(0), sp(90), sp(180), sp(270));
+      if (t >= 3) {
+        const sp2 = rot => '<polygon points="47,1 53,1 50,-6" fill="' + c2 + '" transform="rotate(' + (rot + 45) + ' 50 50)"/>';
+        P.push(sp2(0), sp2(90), sp2(180), sp2(270));
+      }
+      break;
+    }
+    case 'brilliant': {// сияющие шипы из углов + грани-лучики
+      const len = 8 + t * 3.5;
+      const k = rot => '<polygon points="8,2 2,8 ' + (-len) + ',' + (-len) + '" fill="' + c1 + '" transform="rotate(' + rot + ' 50 50)"/>';
+      P.push(k(0), k(90), k(180), k(270));
+      if (t >= 2) {
+        const m = rot => '<polygon points="46,1 54,1 50,' + (-7 - t) + '" fill="' + c2 + '" transform="rotate(' + rot + ' 50 50)"/>';
+        P.push(m(0), m(90), m(180), m(270));
+      }
+      break;
+    }
+    case 'absolute': { // корона лучей всех цветов
+      const cols = ['#ff5d8f', '#ffbf4d', '#4fcac4', '#6c80f5'];
+      for (let i = 0; i < 8; i++)
+        P.push('<polygon points="45.5,2 54.5,2 50,-12" fill="' + cols[i % 4] + '" transform="rotate(' + (i * 45) + ' 50 50)"/>');
+      break;
+    }
   }
+  return P.join('');
 }
 function styleFrame(el, ri) {
   if (!el) return;
   el.style.padding = ri.bw + 'px';
   const glow = (ri.tier === 3 || ri.cat === 'absolute') ? 15 : (ri.tier === 2 ? 10 : 6);
   let shadow = '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
-  // II–III тир: внутреннее светлое кольцо (на III — ярче)
-  if (ri.tier === 2) shadow += ', inset 0 0 0 1px rgba(255,255,255,0.34)';
-  if (ri.tier === 3) shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.55)';
+  if (ri.tier === 2) shadow += ', inset 0 0 0 1px rgba(255,255,255,0.30)';
+  if (ri.tier === 3) shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.5)';
   if (ri.cat === 'absolute') shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.65)';
   el.style.boxShadow = shadow;
   if (ri.cat === 'absolute') {
@@ -1412,11 +1475,18 @@ function styleFrame(el, ri) {
     el.style.background = 'conic-gradient(from 0deg,#ff5d8f,#ffbf4d,#4fcac4,#6c80f5,#ff5d8f)';
   } else {
     el.classList.remove('absolute-frame');
-    const a = (0.10 + ri.tier * 0.07).toFixed(3);   // узор контрастнее с тиром
-    const pat = framePattern(ri.cat, a);
-    const base = 'linear-gradient(135deg,' + ri.c1 + ',' + ri.c2 + ')';
-    el.style.background = pat ? (pat + ',' + base) : base;
+    el.style.background = 'linear-gradient(135deg,' + ri.c1 + ',' + ri.c2 + ')';
   }
+  let deco = null;
+  for (let i = 0; i < el.children.length; i++) if (el.children[i].classList && el.children[i].classList.contains('pf-frame-deco')) { deco = el.children[i]; break; }
+  if (!deco) {
+    deco = document.createElementNS('http://www.w3.org/2000/svg', 'svg');   // svgEl объявлен ниже — нельзя
+    deco.setAttribute('class', 'pf-frame-deco');
+    deco.setAttribute('viewBox', '-14 -14 128 128');
+    el.insertBefore(deco, el.firstChild);
+  }
+  const key = ri.cat + '_' + ri.tier;
+  if (deco._k !== key) { deco._k = key; deco.innerHTML = frameDecoMarkup(ri); }
 }
 function pfDisplayName() {
   if (!tgUser) return 'Игрок';
@@ -1918,7 +1988,7 @@ function snakeEyesCanonical(hitEyes) {
 function snakeDrawBody(group, pts, d, hitEyes) {
   const n = pts.length, h = pts[0];
   const W = 0.7, EW = 0.9;
-  const target = snakeDirAngle(d);
+  const target = (d && typeof d.ang === 'number') ? d.ang : snakeDirAngle(d);   // арена даёт угол напрямую
   let c = group._bc;
   if (!c || c.n !== n || c.hitEyes !== hitEyes) {
     group.innerHTML = '';
@@ -2310,12 +2380,22 @@ window.addEventListener('keydown', e => {
   el.addEventListener('mouseup', e => finish(e.clientX, e.clientY));
 })();
 
-// ===================== РЕЖИМ «АРЕНА» (общее тороидальное поле, как slither.io) =====================
+// ===================== РЕЖИМ «АРЕНА» — свободное движение, как slither.io =====================
+// Непрерывные координаты на тороидальном поле 13×20: змейка плывёт под любым углом,
+// поворачивает к цели с ограниченной скоростью, тело тянется по следу головы.
 const ARENA_COLS = 13, ARENA_ROWS = 20, ARENA_FRUITS = 3;
+const ARENA_SPEED = 5.0;        // клеток в секунду
+const ARENA_TURN = 6.2;         // рад/с — скорость доворота
+const ARENA_SEG = 0.62;         // расстояние между сегментами тела
+const ARENA_START_SEG = 5, ARENA_MAX_SEG = 20;
+const ARENA_HITR = 0.6;         // радиус столкновения с телом соперника
+const ARENA_EATR = 0.62;        // радиус поедания фрукта
 let arenaState = null;
 function arenaMod(v, s) { return ((v % s) + s) % s; }
 function arenaMinwrap(d, s) { let x = arenaMod(d, s); if (x > s / 2) x -= s; return x; }
-function arenaWrapDist(a, b) { return Math.abs(arenaMinwrap(a.r - b.r, ARENA_ROWS)) + Math.abs(arenaMinwrap(a.c - b.c, ARENA_COLS)); }
+function arenaDist(ax, ay, bx, by) {   // расстояние с учётом тора
+  return Math.hypot(arenaMinwrap(ax - bx, ARENA_COLS), arenaMinwrap(ay - by, ARENA_ROWS));
+}
 
 function buildArenaField() {
   const host = document.getElementById('arena-field');
@@ -2351,26 +2431,72 @@ function buildArenaField() {
 function arenaMakeSide(refs, who) {
   return {
     who, base: SNAKE_BASE[who], gBody: refs.gBody, gMarks: refs.gMarks, _inner: refs.inner,
-    cells: [], dir: { r: 0, c: 1 }, nextDir: { r: 0, c: 1 },
-    lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0, comboXP: 0, _eaten: null, hitEyes: false,
-    fromCells: null, tickAt: 0
+    x: 0, y: 0, ang: 0, target: 0, nSeg: ARENA_START_SEG, trail: [],
+    lives: SNAKE_LIVES, state: 'alive', fruitsEaten: 0, comboXP: 0, hitEyes: false
   };
+}
+function arenaInitPos(side, x, y, ang) {
+  side.x = x; side.y = y; side.ang = ang; side.target = ang;
+  side.nSeg = ARENA_START_SEG;
+  side.trail = [];
+  for (let i = 0; i <= 80; i++)
+    side.trail.push({ x: x - Math.cos(ang) * i * 0.2, y: y - Math.sin(ang) * i * 0.2 });
 }
 function arenaSetColor(side, sc, sch) {
   side.gBody.style.setProperty('--sc', sc);
   side.gBody.style.setProperty('--sc-h', sch || sc);
   side.gBody.style.setProperty('--sc-edge', 'color-mix(in srgb, ' + sc + ', #000 32%)');
 }
-function arenaPaintSnake(side, t) { torusPaint(side, t, ARENA_COLS, ARENA_ROWS); }
-function arenaOccupied() {
+// сегменты тела: точки на следе головы через каждые ARENA_SEG
+function arenaSample(side) {
+  const pts = [{ x: side.x, y: side.y }];
+  const tr = side.trail;
+  let need = ARENA_SEG, acc = 0, k = 1;
+  let px = side.x, py = side.y;
+  for (let i = 0; i < tr.length && k < side.nSeg; i++) {
+    const q = tr[i];
+    let d = Math.hypot(q.x - px, q.y - py);
+    while (d >= need && k < side.nSeg) {
+      const f = need / d;
+      px = px + (q.x - px) * f; py = py + (q.y - py) * f;
+      pts.push({ x: px, y: py });
+      k++;
+      d = Math.hypot(q.x - px, q.y - py);
+      need = ARENA_SEG;
+    }
+    need -= d;
+    px = q.x; py = q.y;
+  }
+  while (pts.length < side.nSeg) {   // след короче нужного — достраиваем по прямой назад
+    const a = pts[pts.length - 1];
+    pts.push({ x: a.x - Math.cos(side.ang) * ARENA_SEG, y: a.y - Math.sin(side.ang) * ARENA_SEG });
+  }
+  return pts;
+}
+function arenaPaintFree(side) {
+  const pts = arenaSample(side);
+  // сдвигаем так, чтобы голова была внутри поля — тор-клоны покажут хвост с другой стороны
+  const sx = arenaMod(side.x, ARENA_COLS) - side.x;
+  const sy = arenaMod(side.y, ARENA_ROWS) - side.y;
+  const sp = pts.map(p => ({ x: p.x + sx, y: p.y + sy }));
+  side._waveEls = snakeDrawBody(side._inner, sp, { ang: side.ang * 180 / Math.PI }, side.hitEyes);
+  side._pts = sp;   // для столкновений/меток (в координатах поля со сдвигом)
+}
+function arenaWrappedPts(side) {
+  return (side._pts || []).map(p => ({ x: arenaMod(p.x, ARENA_COLS), y: arenaMod(p.y, ARENA_ROWS) }));
+}
+function arenaOccupiedCells() {
   const s = new Set();
-  [arenaState.me, arenaState.ai].forEach(sd => sd.cells.forEach(p => s.add(p.r + '_' + p.c)));
+  [arenaState.me, arenaState.ai].forEach(sd => {
+    if (!sd) return;
+    arenaWrappedPts(sd).forEach(p => s.add(Math.floor(p.y) + '_' + Math.floor(p.x)));
+  });
   arenaState.fruits.forEach(f => s.add(f.r + '_' + f.c));
   return s;
 }
 function arenaEnsureFruits() {
   while (arenaState.fruits.length < ARENA_FRUITS) {
-    const occ = arenaOccupied(); const free = [];
+    const occ = arenaOccupiedCells(); const free = [];
     for (let r = 0; r < ARENA_ROWS; r++) for (let c = 0; c < ARENA_COLS; c++) if (!occ.has(r + '_' + c)) free.push({ r, c });
     if (!free.length) break;
     arenaState.fruits.push(free[Math.floor(Math.random() * free.length)]);
@@ -2381,47 +2507,63 @@ function arenaDrawFruit(burst) {
   if (burst) g.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.3 }));
   arenaState.fruits.forEach(f => g.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: f.c + 0.5, cy: f.r + 0.5, r: 0.3 })));
 }
-function arenaNearestFruit(head) {
+function arenaNearestFruit(side) {
   let best = null, bd = 1e9;
-  arenaState.fruits.forEach(f => { const d = arenaWrapDist(head, f); if (d < bd) { bd = d; best = f; } });
+  const hx = arenaMod(side.x, ARENA_COLS), hy = arenaMod(side.y, ARENA_ROWS);
+  arenaState.fruits.forEach(f => {
+    const d = arenaDist(hx, hy, f.c + 0.5, f.r + 0.5);
+    if (d < bd) { bd = d; best = f; }
+  });
   return best;
 }
-function arenaStartCells(who) {
-  const r = who === 'me' ? ARENA_ROWS - 4 : 3, c = Math.floor(ARENA_COLS / 2);
-  return [{ r, c }, { r, c: arenaMod(c - 1, ARENA_COLS) }, { r, c: arenaMod(c - 2, ARENA_COLS) }];
-}
-function arenaSafeSpawn() {
-  for (let tries = 0; tries < 200; tries++) {
-    const r = Math.floor(Math.random() * ARENA_ROWS), c = Math.floor(Math.random() * ARENA_COLS);
-    const occ = arenaOccupied(); const cells = []; let ok = true;
-    for (let i = 0; i < 3; i++) { const cc = arenaMod(c - i, ARENA_COLS); if (occ.has(r + '_' + cc)) { ok = false; break; } cells.push({ r, c: cc }); }
-    if (ok) return cells;
+function arenaSafeSpawn(opp) {
+  for (let tries = 0; tries < 120; tries++) {
+    const x = 1.5 + Math.random() * (ARENA_COLS - 3), y = 1.5 + Math.random() * (ARENA_ROWS - 3);
+    let ok = true;
+    if (opp && opp.state !== 'dead') {
+      for (const p of arenaWrappedPts(opp)) if (arenaDist(x, y, p.x, p.y) < 3) { ok = false; break; }
+    }
+    if (ok) return { x, y, ang: Math.random() * Math.PI * 2 };
   }
-  return [{ r: 0, c: 2 }, { r: 0, c: 1 }, { r: 0, c: 0 }];
+  return { x: ARENA_COLS / 2, y: ARENA_ROWS / 2, ang: 0 };
 }
-function arenaAdvance(side, dir) {
-  const head = side.cells[0];
-  const nr = arenaMod(head.r + dir.r, ARENA_ROWS), nc = arenaMod(head.c + dir.c, ARENA_COLS);
-  const fi = arenaState.fruits.findIndex(f => f.r === nr && f.c === nc);
-  side.cells.unshift({ r: nr, c: nc });
-  if (fi >= 0) { side._eaten = { r: nr, c: nc }; arenaState.fruits.splice(fi, 1); return 'eat'; }
-  side.cells.pop();
-  return 'ok';
+function arenaTurnToward(side, dt) {
+  let diff = side.target - side.ang;
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  const mx = ARENA_TURN * dt;
+  side.ang += Math.abs(diff) <= mx ? diff : Math.sign(diff) * mx;
 }
-function arenaAiDir(side) {
-  const opp = (side.who === 'ai') ? arenaState.me : arenaState.ai;
-  const head = side.cells[0];
-  const all = [{ r: 0, c: 1 }, { r: 0, c: -1 }, { r: 1, c: 0 }, { r: -1, c: 0 }];
-  const opts = all.filter(d => !(d.r === -side.dir.r && d.c === -side.dir.c));
-  const oppSet = new Set(opp.state === 'alive' ? opp.cells.map(p => p.r + '_' + p.c) : []);
-  const selfSet = new Set(side.cells.slice(0, -1).map(p => p.r + '_' + p.c));
-  const cellOf = d => ({ r: arenaMod(head.r + d.r, ARENA_ROWS), c: arenaMod(head.c + d.c, ARENA_COLS) });
-  let pool = opts.filter(d => { const n = cellOf(d); return !oppSet.has(n.r + '_' + n.c) && !selfSet.has(n.r + '_' + n.c); });
-  if (!pool.length) pool = opts.filter(d => { const n = cellOf(d); return !oppSet.has(n.r + '_' + n.c); });
-  if (!pool.length) pool = opts;
-  const fruit = arenaNearestFruit(head);
-  if (fruit) pool.sort((a, b) => arenaWrapDist(cellOf(a), fruit) - arenaWrapDist(cellOf(b), fruit));
-  return pool[0] || side.dir;
+function arenaStep(side, dt) {
+  arenaTurnToward(side, dt);
+  side.x += Math.cos(side.ang) * ARENA_SPEED * dt;
+  side.y += Math.sin(side.ang) * ARENA_SPEED * dt;
+  side.trail.unshift({ x: side.x, y: side.y });
+  // подрезаем след: держим чуть больше длины тела
+  const maxLen = side.nSeg * ARENA_SEG + 2;
+  let acc = 0;
+  for (let i = 1; i < side.trail.length; i++) {
+    acc += Math.hypot(side.trail[i].x - side.trail[i - 1].x, side.trail[i].y - side.trail[i - 1].y);
+    if (acc > maxLen) { side.trail.length = i + 1; break; }
+  }
+}
+function arenaAiSteer(side) {
+  const opp = side.who === 'ai' ? arenaState.me : arenaState.ai;
+  const fruit = arenaNearestFruit(side);
+  const hx = arenaMod(side.x, ARENA_COLS), hy = arenaMod(side.y, ARENA_ROWS);
+  let want = side.ang;
+  if (fruit) want = Math.atan2(arenaMinwrap(fruit.r + 0.5 - hy, ARENA_ROWS), arenaMinwrap(fruit.c + 0.5 - hx, ARENA_COLS));
+  // объезд тела соперника: пробуем углы по нарастающему отклонению
+  const oppPts = (opp && opp.state === 'alive') ? arenaWrappedPts(opp) : [];
+  const clear = a => {
+    const lx = arenaMod(hx + Math.cos(a) * 1.6, ARENA_COLS), ly = arenaMod(hy + Math.sin(a) * 1.6, ARENA_ROWS);
+    for (const p of oppPts) if (arenaDist(lx, ly, p.x, p.y) < 1.0) return false;
+    return true;
+  };
+  for (const off of [0, 0.7, -0.7, 1.5, -1.5, 2.4, -2.4]) {
+    if (clear(want + off)) { side.target = want + off; return; }
+  }
+  side.target = want + Math.PI;   // всё занято — разворот
 }
 function arenaRenderLives() {
   if (!arenaState) return;
@@ -2433,24 +2575,63 @@ function arenaRenderLives() {
   draw('arena-me-hearts', arenaState.me.lives);
   draw('arena-ai-hearts', arenaState.ai.lives);
 }
-function arenaRenderLoop() {
+function arenaLoop() {
   if (!arenaState) return;
+  const st = arenaState;
   const now = snakeNow();
-  [arenaState.me, arenaState.ai].forEach(side => {
-    if (side && side.state === 'alive' && side._inner) {
-      const t = (arenaState.running && side.tickAt) ? Math.min(1, (now - side.tickAt) / SNAKE_TICK) : 1;
-      arenaPaintSnake(side, t);
+  let dt = (now - (st._t || now)) / 1000;
+  st._t = now;
+  if (dt > 0.05) dt = 0.05;   // вкладка спала — не телепортируем
+  if (st.running && dt > 0) {
+    const me = st.me, ai = st.ai;
+    if (ai.state === 'alive') arenaAiSteer(ai);
+    [me, ai].forEach(side => {
+      if (side.state !== 'alive') return;
+      arenaStep(side, dt);
+      // фрукты
+      const hx = arenaMod(side.x, ARENA_COLS), hy = arenaMod(side.y, ARENA_ROWS);
+      for (let i = 0; i < st.fruits.length; i++) {
+        const f = st.fruits[i];
+        if (arenaDist(hx, hy, f.c + 0.5, f.r + 0.5) < ARENA_EATR) {
+          st.fruits.splice(i, 1);
+          side.nSeg = Math.min(ARENA_MAX_SEG, side.nSeg + 1);
+          if (side.who === 'me') side.fruitsEaten++;
+          arenaEnsureFruits();
+          arenaDrawFruit({ r: f.r, c: f.c });
+          try { if (side.who === 'me' && tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+          break;
+        }
+      }
+    });
+    // отрисовка (нужна до столкновений — она же кэширует точки тел)
+    if (me.state === 'alive') arenaPaintFree(me);
+    if (ai.state === 'alive') arenaPaintFree(ai);
+    // столкновения: голова в теле соперника (как slither.io); лоб-в-лоб — оба
+    if (me.state === 'alive' && ai.state === 'alive') {
+      const mw = arenaWrappedPts(me), aw = arenaWrappedPts(ai);
+      const hit = (head, pts, skipHead) => {
+        for (let i = skipHead ? 1 : 0; i < pts.length; i++)
+          if (arenaDist(head.x, head.y, pts[i].x, pts[i].y) < ARENA_HITR) return true;
+        return false;
+      };
+      const headOn = arenaDist(mw[0].x, mw[0].y, aw[0].x, aw[0].y) < ARENA_HITR + 0.1;
+      const meHit = headOn || hit(mw[0], aw, true);
+      const aiHit = headOn || hit(aw[0], mw, true);
+      if (meHit) arenaDeath(me);
+      if (aiHit) arenaDeath(ai);
     }
-  });
-  arenaState._raf = requestAnimationFrame(arenaRenderLoop);
+  } else {
+    if (st.me.state === 'alive') arenaPaintFree(st.me);
+    if (st.ai.state === 'alive') arenaPaintFree(st.ai);
+  }
+  st._raf = requestAnimationFrame(arenaLoop);
 }
 function arenaDeath(side) {
   const st = arenaState;
   side.state = 'dying';
   side.lives--;
   side.hitEyes = true;
-  side.fromCells = null;
-  arenaPaintSnake(side, 1);
+  arenaPaintFree(side);   // зафиксировали кадр с X-глазами + сегменты для волны
   arenaRenderLives();
   jsShake(document.getElementById('arena-field'));
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(side.who === 'me' ? 'warning' : 'success'); } catch (e) {}
@@ -2458,48 +2639,31 @@ function arenaDeath(side) {
     snakeWaveColor(side, 'var(--miss)');
     arenaSetColor(side, 'var(--miss)', 'var(--miss)');
     side.gMarks.innerHTML = '';
-    side.cells.forEach((p, idx) => {
-      const m = svgEl('rect', { class: 'snk-mark', x: p.c + 0.33, y: p.r + 0.33, width: 0.34, height: 0.34, rx: 0.17 });
-      m.style.animationDelay = (0.3 + idx * 0.07).toFixed(2) + 's';
+    const seen = new Set();
+    arenaWrappedPts(side).forEach((p, idx) => {
+      const r = Math.floor(p.y), c = Math.floor(p.x), k = r + '_' + c;
+      if (seen.has(k)) return; seen.add(k);
+      const m = svgEl('rect', { class: 'snk-mark', x: c + 0.33, y: r + 0.33, width: 0.34, height: 0.34, rx: 0.17 });
+      m.style.animationDelay = (0.3 + idx * 0.06).toFixed(2) + 's';
       side.gMarks.appendChild(m);
     });
-    setTimeout(() => { if (arenaState !== st) return; side.state = 'dead'; arenaCheckOver(); }, 800 + side.cells.length * 90);
+    setTimeout(() => { if (arenaState !== st) return; side.state = 'dead'; arenaCheckOver(); }, 800 + side.nSeg * 80);
     return;
   }
   const col = SNAKE_DMG[side.lives];
   snakeWaveColor(side, col);
   arenaSetColor(side, col, col);
   setTimeout(() => {
-    if (arenaState !== st || st.ended) return;   // игру закрыли/сменили, пока ждали
+    if (arenaState !== st || st.ended) return;
     side.gMarks.innerHTML = '';
-    side.cells = arenaSafeSpawn();
-    side.dir = { r: 0, c: 1 }; side.nextDir = { r: 0, c: 1 };
-    side.fromCells = null; side.tickAt = 0; side.hitEyes = false;
-    arenaSetColor(side, side.base.sc, side.base.sch);   // вернуть базовый цвет (важно различать на одном поле)
-    arenaPaintSnake(side, 1);
+    const opp = side.who === 'me' ? st.ai : st.me;
+    const sp = arenaSafeSpawn(opp);
+    arenaInitPos(side, sp.x, sp.y, sp.ang);
+    side.hitEyes = false;
+    arenaSetColor(side, side.base.sc, side.base.sch);   // вернуть базовый цвет
     side.state = 'alive';
+    arenaPaintFree(side);
   }, 1100);
-}
-function arenaTick() {
-  if (!arenaState || !arenaState.running) return;
-  const now = snakeNow();
-  [arenaState.me, arenaState.ai].forEach(side => {
-    if (side.state !== 'alive') return;
-    side.fromCells = side.cells.map(p => ({ r: p.r, c: p.c }));
-    side.dir = (side.who === 'me') ? side.nextDir : arenaAiDir(side);
-    const res = arenaAdvance(side, side.dir);
-    if (res === 'eat') {
-      if (side.who === 'me') side.fruitsEaten++;
-      arenaEnsureFruits();
-      arenaDrawFruit(side._eaten);
-    }
-    side.tickAt = now;
-  });
-  const me = arenaState.me, ai = arenaState.ai;
-  const meHit = me.state === 'alive' && ai.state === 'alive' && ai.cells.some(p => p.r === me.cells[0].r && p.c === me.cells[0].c);
-  const aiHit = ai.state === 'alive' && me.state === 'alive' && me.cells.some(p => p.r === ai.cells[0].r && p.c === ai.cells[0].c);
-  if (meHit) arenaDeath(me);
-  if (aiHit) arenaDeath(ai);
 }
 function arenaCheckOver() {
   if (!arenaState || arenaState.ended) return;
@@ -2517,14 +2681,13 @@ function arenaEnd(win, fruits, comboXP) {
   setTimeout(() => { showXpResult(win, fruits, 'snake', Math.round(comboXP || 0)); launchConfetti(win); }, 90);
 }
 function arenaStop() {
-  if (arenaState) { arenaState.running = false; clearInterval(arenaState.interval); clearInterval(arenaState.cdiv); if (arenaState._raf) cancelAnimationFrame(arenaState._raf); }
+  if (arenaState) { arenaState.running = false; clearInterval(arenaState.cdiv); if (arenaState._raf) cancelAnimationFrame(arenaState._raf); }
 }
-function arenaSetDir(r, c) {
+function arenaSetDir(r, c) {   // клавиатура: стрелки задают целевой угол
   if (!arenaState || !arenaState.running) return;
   const me = arenaState.me;
   if (me.state !== 'alive') return;
-  if (r === -me.dir.r && c === -me.dir.c) return;
-  me.nextDir = { r, c };
+  me.target = Math.atan2(r, c);
 }
 function startArena() {
   currentGame = 'arena';
@@ -2536,13 +2699,14 @@ function startArena() {
   document.getElementById('opp-select').classList.add('hidden');
   const refs = buildArenaField();
   const me = arenaMakeSide(refs.me, 'me'), ai = arenaMakeSide(refs.ai, 'ai');
-  arenaState = { running: false, ended: false, interval: null, cdiv: null, _raf: 0, svg: refs.svg, gFruit: refs.gFruit, me, ai, fruits: [] };
+  arenaState = { running: false, ended: false, cdiv: null, _raf: 0, _t: 0, svg: refs.svg, gFruit: refs.gFruit, me, ai, fruits: [] };
   const st = arenaState;
-  me.cells = arenaStartCells('me'); ai.cells = arenaStartCells('ai');
+  arenaInitPos(me, ARENA_COLS / 2, ARENA_ROWS - 3.5, -Math.PI / 2);   // я — снизу, смотрю вверх
+  arenaInitPos(ai, ARENA_COLS / 2, 3.5, Math.PI / 2);                  // соперник — сверху, вниз
   arenaEnsureFruits(); arenaDrawFruit();
-  arenaPaintSnake(me, 1); arenaPaintSnake(ai, 1);
+  arenaPaintFree(me); arenaPaintFree(ai);
   arenaRenderLives();
-  arenaState._raf = requestAnimationFrame(arenaRenderLoop);
+  arenaState._raf = requestAnimationFrame(arenaLoop);
   document.getElementById('arena-screen').classList.remove('hidden');
   const dim = document.getElementById('arena-dim'), num = document.getElementById('arena-num');
   dim.classList.add('show');
@@ -2550,32 +2714,36 @@ function startArena() {
   const setNum = v => { num.textContent = v; num.style.animation = 'none'; void num.offsetWidth; num.style.animation = ''; };
   setNum(n);
   st.cdiv = setInterval(() => {
-    if (arenaState !== st) { clearInterval(st.cdiv); return; }   // игру сменили/закрыли — отсчёт мёртв
+    if (arenaState !== st) { clearInterval(st.cdiv); return; }
     n--;
     if (n <= 0) {
       clearInterval(st.cdiv); st.cdiv = null;
       dim.classList.remove('show'); num.textContent = '';
+      st._t = snakeNow();
       st.running = true;
-      st.interval = setInterval(arenaTick, SNAKE_TICK);
     } else setNum(n);
   }, 1000);
 }
+// Управление-джойстик: палец на поле задаёт направление (вектор от точки касания)
 (function () {
   const el = document.getElementById('arena-center');
   if (!el) return;
   let sx = 0, sy = 0, on = false;
   const begin = (x, y) => { sx = x; sy = y; on = true; };
-  const finish = (x, y) => {
-    if (!on) return; on = false;
+  const move = (x, y) => {
+    if (!on || !arenaState || !arenaState.running) return;
+    const me = arenaState.me;
+    if (me.state !== 'alive') return;
     const dx = x - sx, dy = y - sy;
-    if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return;
-    if (Math.abs(dx) > Math.abs(dy)) arenaSetDir(0, dx > 0 ? 1 : -1);
-    else arenaSetDir(dy > 0 ? 1 : -1, 0);
+    if (Math.hypot(dx, dy) < 12) return;   // мёртвая зона
+    me.target = Math.atan2(dy, dx);
   };
   el.addEventListener('touchstart', e => { const t = e.touches[0]; begin(t.clientX, t.clientY); }, { passive: true });
-  el.addEventListener('touchend', e => { const t = e.changedTouches[0]; finish(t.clientX, t.clientY); }, { passive: true });
+  el.addEventListener('touchmove', e => { const t = e.touches[0]; move(t.clientX, t.clientY); }, { passive: true });
+  el.addEventListener('touchend', () => { on = false; }, { passive: true });
   el.addEventListener('mousedown', e => begin(e.clientX, e.clientY));
-  el.addEventListener('mouseup', e => finish(e.clientX, e.clientY));
+  el.addEventListener('mousemove', e => { if (e.buttons) move(e.clientX, e.clientY); });
+  el.addEventListener('mouseup', () => { on = false; });
 })();
 document.getElementById('arena-back-x').addEventListener('click', () => {
   arenaStop();
