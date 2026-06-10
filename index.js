@@ -887,6 +887,7 @@ function shootEnemyCell(r, c) {
     mine.hit = true;
     if (el) { el.classList.add('mine-boom'); el.classList.remove('radar-ship', 'radar-dot'); }
     spawnRipple(el, 'red');
+    spawnMineBlast('enemy-board', r, c);
     try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error'); } catch (e) {}
     return 'mine';
   }
@@ -1109,6 +1110,7 @@ function aiShootPlayerCell(r, c) {
     mine.hit = true;
     if (el) el.classList.add('mine-boom');
     spawnRipple(el, 'red');
+    spawnMineBlast('battle-my-board', r, c);
     arsRenderMyDefense();
     try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
     return 'mine';
@@ -1350,7 +1352,7 @@ function arsRenderPlaceOverlays() {
     if (!cell) return;
     const d = document.createElement('div');
     d.className = 'ars-mine draggable';
-    const sz = Math.round(cell.offsetWidth * 0.62);
+    const sz = Math.round(cell.offsetWidth * 0.72);
     d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
     arsBindMineDrag(d, idx);
     boardEl.appendChild(d);
@@ -1436,7 +1438,7 @@ function arsRenderDefOverlays(boardId, shieldTops, mines) {
     if (!cell) return;
     const d = document.createElement('div');
     d.className = 'ars-mine';
-    const sz = Math.round(cell.offsetWidth * 0.62);
+    const sz = Math.round(cell.offsetWidth * 0.72);
     d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
     boardEl.appendChild(d);
   });
@@ -1572,7 +1574,7 @@ function arsRenderPanel() {
     ['radar', 'big', 'line'].forEach(k => {
       const b = document.createElement('button');
       b.className = 'ars-btn'; b.id = 'ars-btn-' + k; b.type = 'button';
-      b.innerHTML = ARS_DEF[k].ico + '<span class="ars-badge" id="ars-bdg-' + k + '"></span>';
+      b.innerHTML = ARS_DEF[k].ico + '<span class="ars-dots" id="ars-bdg-' + k + '"></span>';
       b.addEventListener('click', () => {
         if (!state || state.over || state.turn !== 'player') return;
         state.armed = (state.armed === k) ? null : k;
@@ -1592,7 +1594,9 @@ function arsSyncPanel() {
   ['radar', 'big', 'line'].forEach(k => {
     const b = document.getElementById('ars-btn-' + k), bd = document.getElementById('ars-bdg-' + k);
     if (!b) return;
-    bd.textContent = A[k];
+    let dots = '';
+    for (let i = 0; i < ARS_DEF[k].max; i++) dots += '<i class="' + (i < A[k] ? '' : 'off') + '"></i>';
+    bd.innerHTML = dots;
     b.classList.toggle('depleted', A[k] <= 0);
     b.classList.toggle('armed', state.armed === k);
     if (A[k] <= 0 && state.armed === k) state.armed = null;
@@ -1632,35 +1636,28 @@ function arsPlayerUse(r, c) {
     A.big--; arsSyncPanel();
     const r0 = arsClampCenter(r) - 1, c0 = arsClampCenter(c) - 1;
     const sh = arsShieldFor(state.ars.enemy, arsZoneRows(r0));
-    if (sh) { arsFlashShield('enemy-board', sh); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 900); return; }
+    if (sh) { animShieldBlock('enemy-board', r0 + 1, c0 + 1, sh, () => { if (!state.over) passTurnToEnemy(); }); return; }
     const pool = [];
     for (let rr = r0; rr <= r0 + 2; rr++) for (let cc = c0; cc <= c0 + 2; cc++)
       if (!state.enemy.board[rr][cc].shot) pool.push({ r: rr, c: cc });
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const targets = pool.slice(0, 3);
-    arsVolley(targets, 0, false);
+    animBigVolley('enemy-board', pool.slice(0, 3), shootEnemyCell,
+      () => { state.skipPlayer = true; setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
+      () => { if (!state.over) passTurnToEnemy(); });
     return;
   }
   if (kind === 'line' && A.line > 0) {
     A.line--; arsSyncPanel();
     const sh = arsShieldFor(state.ars.enemy, [r]);
-    if (sh) { arsFlashShield('enemy-board', sh); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 900); return; }
+    if (sh) { animShieldBlock('enemy-board', r, Math.floor(SIZE / 2), sh, () => { if (!state.over) passTurnToEnemy(); }); return; }
     const targets = [];
     for (let cc = 0; cc < SIZE; cc++) if (!state.enemy.board[r][cc].shot) targets.push({ r, c: cc });
-    arsVolley(targets, 0, true);
+    animLineVolley('enemy-board', targets, shootEnemyCell,
+      () => { state.skipPlayer = true; setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
+      () => { if (!state.over) passTurnToEnemy(); });
     return;
   }
   arsSyncPanel();
-}
-// последовательный залп по полю ИИ; stopOnHit — линия останавливается о корабль
-function arsVolley(targets, i, stopOnHit) {
-  if (state.over) return;
-  if (i >= targets.length) { if (!state.over) passTurnToEnemy(); return; }
-  const t = targets[i];
-  const res = shootEnemyCell(t.r, t.c);
-  if (res === 'mine') { state.skipPlayer = true; setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 650); return; }
-  if (res === 'hit' && stopOnHit) { setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 650); return; }
-  setTimeout(() => arsVolley(targets, i + 1, stopOnHit), stopOnHit ? 150 : 260);
 }
 
 // --- арсенал ИИ ---
@@ -1702,12 +1699,14 @@ function aiUseBig() {
   const A = state.ars.enemy; A.big--;
   const z = aiZonePick();
   const sh = arsShieldFor(state.ars.player, arsZoneRows(z.r0));
-  if (sh) { arsFlashShield('battle-my-board', sh); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 950); return; }
+  if (sh) { animShieldBlock('battle-my-board', z.r0 + 1, z.c0 + 1, sh, () => { if (!state.over) passTurnToPlayer(); }); return; }
   const pool = [];
   for (let rr = z.r0; rr <= z.r0 + 2; rr++) for (let cc = z.c0; cc <= z.c0 + 2; cc++)
     if (!state.player.board[rr][cc].shot) pool.push({ r: rr, c: cc });
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  aiVolley(pool.slice(0, 3), 0, false);
+  animBigVolley('battle-my-board', pool.slice(0, 3), aiShootPlayerCell,
+    () => { state.skipEnemy = true; setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
+    () => { if (!state.over) passTurnToPlayer(); });
 }
 function aiUseLine() {
   const A = state.ars.enemy; A.line--;
@@ -1717,20 +1716,12 @@ function aiUseLine() {
     if (v > bv) { bv = v; bestR = r; }
   }
   const sh = arsShieldFor(state.ars.player, [bestR]);
-  if (sh) { arsFlashShield('battle-my-board', sh); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 950); return; }
+  if (sh) { animShieldBlock('battle-my-board', bestR, Math.floor(SIZE / 2), sh, () => { if (!state.over) passTurnToPlayer(); }); return; }
   const targets = [];
   for (let c = 0; c < SIZE; c++) if (!state.player.board[bestR][c].shot) targets.push({ r: bestR, c });
-  aiVolley(targets, 0, true);
-}
-function aiVolley(targets, i, stopOnHit) {
-  if (!state || state.over) return;
-  if (i >= targets.length) { passTurnToPlayer(); return; }
-  const t = targets[i];
-  const res = aiShootPlayerCell(t.r, t.c);
-  if (res === 'end') return;
-  if (res === 'mine') { state.skipEnemy = true; setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 650); return; }
-  if (res === 'hit' && stopOnHit) { setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 650); return; }
-  setTimeout(() => aiVolley(targets, i + 1, stopOnHit), stopOnHit ? 150 : 280);
+  animLineVolley('battle-my-board', targets, aiShootPlayerCell,
+    () => { state.skipEnemy = true; setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
+    () => { if (!state.over) passTurnToPlayer(); });
 }
 function arsAiAutoDefense(counts) {
   // ИИ ставит щиты и мины случайно по тем же правилам
@@ -1756,6 +1747,127 @@ function arsAiAutoDefense(counts) {
     mines: mines.map(m => ({ r: m.r, c: m.c, hit: false })),
     radar: counts.radar, big: counts.big, line: counts.line
   };
+}
+
+// --- анимации арсенала: полёт снарядов, взрывы, сбивание щитом (всё JS-транзишенами) ---
+function arsCellCenter(boardId, r, c) {
+  const cell = getCellEl(boardId, r, c);
+  if (!cell) return null;
+  const rc = cell.getBoundingClientRect();
+  if (!rc.width) return null;   // поле невидимо/тесты
+  return { x: rc.left + rc.width / 2, y: rc.top + rc.height / 2, w: rc.width, cell };
+}
+function spawnBlast(boardId, r, c, mine) {
+  const cell = getCellEl(boardId, r, c);
+  const boardEl = document.getElementById(boardId);
+  if (!cell || !boardEl) return;
+  const sz = cell.offsetWidth * 1.7;
+  const d = document.createElement('div');
+  d.className = 'ars-blast' + (mine ? ' mine' : '');
+  d.style.cssText = 'left:' + (cell.offsetLeft + cell.offsetWidth / 2 - sz / 2) + 'px;top:' + (cell.offsetTop + cell.offsetHeight / 2 - sz / 2)
+    + 'px;width:' + sz + 'px;height:' + sz + 'px;transform:scale(0.25);opacity:1';
+  boardEl.appendChild(d);
+  requestAnimationFrame(() => {
+    d.style.transition = 'transform 0.5s cubic-bezier(.2,.7,.35,1), opacity 0.5s ease';
+    d.style.transform = 'scale(1)';
+    d.style.opacity = '0';
+  });
+  setTimeout(() => d.remove(), 650);
+}
+function spawnMineBlast(boardId, r, c) {
+  spawnBlast(boardId, r, c, true);
+  jsShake(document.getElementById(boardId));
+  const p = arsCellCenter(boardId, r, c);
+  if (p) bombShatter(p.x, p.y, 'rgba(255,71,87,0.95)');
+}
+function bombShatter(x, y, color) {
+  for (let i = 0; i < 7; i++) {
+    const s = document.createElement('div');
+    s.className = 'ars-shard';
+    if (color) s.style.background = color;
+    s.style.transform = 'translate(' + (x - 2) + 'px,' + (y - 2) + 'px)';
+    s.style.opacity = '1';
+    document.body.appendChild(s);
+    const a = Math.random() * Math.PI * 2, dist = 26 + Math.random() * 34;
+    requestAnimationFrame(() => {
+      s.style.transition = 'transform 0.45s cubic-bezier(.2,.6,.4,1), opacity 0.45s ease';
+      s.style.transform = 'translate(' + (x + Math.cos(a) * dist) + 'px,' + (y + Math.sin(a) * dist) + 'px) rotate(' + (Math.random() * 240 - 120) + 'deg)';
+      s.style.opacity = '0';
+    });
+    setTimeout(() => s.remove(), 600);
+  }
+}
+// полёт снаряда к клетке; fromRight — со стороны правого края (атака игрока), иначе слева (ИИ)
+function flyBomb(boardId, r, c, fromRight, cb) {
+  const p = arsCellCenter(boardId, r, c);
+  if (!p) { if (cb) cb(null); return; }
+  const b = document.createElement('div');
+  b.className = 'ars-bomb';
+  const sx = fromRight ? window.innerWidth + 60 : -60;
+  const sy = p.y - 70 - Math.random() * 40;
+  b.style.transform = 'translate(' + sx + 'px,' + sy + 'px) rotate(' + (fromRight ? 35 : -35) + 'deg)';
+  if (!fromRight) b.style.setProperty('--flip', '-1');
+  document.body.appendChild(b);
+  requestAnimationFrame(() => {
+    b.style.transition = 'transform 0.42s cubic-bezier(.4,.5,.4,1)';
+    b.style.transform = 'translate(' + (p.x - 8) + 'px,' + (p.y - 8) + 'px) rotate(0deg)';
+  });
+  setTimeout(() => { if (cb) cb(b); }, 430);
+}
+// снаряд сбит щитом: летит к центру зоны, щит вспыхивает, снаряд распадается
+function animShieldBlock(boardId, r, c, shield, done) {
+  flyBomb(boardId, r, c, boardId === 'enemy-board', b => {
+    arsFlashShield(boardId, shield);
+    if (b) {
+      const m = /translate\(([\d.+-]+)px,\s*([\d.+-]+)px/.exec(b.style.transform);
+      b.remove();
+      if (m) bombShatter(+m[1] + 8, +m[2] + 8);
+    }
+    setTimeout(done, 800);
+  });
+}
+// большая бомба: снаряды по очереди к каждой клетке
+function animBigVolley(boardId, targets, shootFn, onMine, done) {
+  let i = 0;
+  const step = () => {
+    if (!state || state.over) return;
+    if (i >= targets.length) { done(); return; }
+    const t = targets[i++];
+    flyBomb(boardId, t.r, t.c, boardId === 'enemy-board', b => {
+      if (b) b.remove();
+      if (!state || state.over) return;
+      const res = shootFn(t.r, t.c);
+      if (res === 'hit' || res === 'miss') spawnBlast(boardId, t.r, t.c);
+      if (res === 'mine') { spawnMineBlast(boardId, t.r, t.c); onMine(); return; }
+      if (res === 'end') return;
+      setTimeout(step, 110);
+    });
+  };
+  step();
+}
+// линия: один бегущий снаряд скользит по строке до корабля/мины
+function animLineVolley(boardId, targets, shootFn, onMine, done) {
+  if (!targets.length) { done(); return; }
+  flyBomb(boardId, targets[0].r, targets[0].c, boardId === 'enemy-board', b => {
+    let i = 0;
+    const step = () => {
+      if (!state || state.over) { if (b) b.remove(); return; }
+      const t = targets[i];
+      const res = shootFn(t.r, t.c);
+      if (res === 'mine') { if (b) b.remove(); spawnMineBlast(boardId, t.r, t.c); onMine(); return; }
+      if (res === 'end') { if (b) b.remove(); return; }
+      if (res === 'hit') { if (b) b.remove(); spawnBlast(boardId, t.r, t.c); setTimeout(done, 550); return; }   // стоп о корабль
+      i++;
+      if (i >= targets.length) { if (b) b.remove(); done(); return; }
+      const p = arsCellCenter(boardId, targets[i].r, targets[i].c);
+      if (b && p) {
+        b.style.transition = 'transform 0.13s linear';
+        b.style.transform = 'translate(' + (p.x - 8) + 'px,' + (p.y - 8) + 'px) rotate(0deg)';
+      }
+      setTimeout(step, 140);
+    };
+    step();
+  });
 }
 
 // --- передача хода с учётом пропусков (мины) ---
