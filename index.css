@@ -1474,3 +1474,14 @@
     text-shadow: 0 4px 18px rgba(0,0,0,0.45);
     will-change: transform, opacity;
   }
+
+  /* контролы в фазе арсенала: гаснут, не двигая layout */
+  #controls { transition: opacity 0.3s ease; }
+  #controls.ghost { opacity: 0; pointer-events: none; }
+
+  /* закреплённые маркеры: анимация появления отыграла и отключена — перезапуски Safari им безразличны */
+  .cell.stl, .cell.stl::before, .cell.stl::after { animation: none !important; }
+
+  /* статичный финальный вид крестов промаха: после отключения анимации (stl) вид не меняется */
+  .cell.miss::before { transform: translate(-50%,-50%) rotate(45deg); opacity: 0.85; }
+  .cell.miss::after  { transform: translate(-50%,-50%) rotate(-45deg); opacity: 0.85; }

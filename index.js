@@ -678,7 +678,41 @@ function resetWithAnimation() {
   setTimeout(startPlacement, 420);
 }
 
-// отсчёт перед боем: 3-2-1 на каждом поле; стрелка крутится и случайно выбирает, кто ходит первым
+// рулетка стрелки: разгон → инерционное затухание → плавный доезд к ближайшей стороне
+function spinTurnArrow(dur, onPick) {
+  const arrow = document.getElementById('turn-arrow');
+  if (!arrow) { if (onPick) onPick(Math.random() < 0.5 ? 'player' : 'enemy'); return; }
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const startA = turnAngle || 0;
+  const totalSpin = 720 + Math.random() * 540;   // 2–3.5 оборота — итог случаен
+  const tick = () => {
+    if (!state) return;
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const t = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);        // инерция: быстро → плавное затухание
+    const a = startA + totalSpin * eased;
+    arrow.style.transition = 'none';
+    arrow.style.transform = 'rotate(' + a + 'deg)';
+    const side = Math.round(a / 180) % 2 === 0 ? 'player' : 'enemy';
+    arrow.classList.toggle('down', side === 'player');
+    arrow.classList.toggle('up', side === 'enemy');
+    if (t < 1) { requestAnimationFrame(tick); return; }
+    // остановилась — мягкий доезд к ближайшему положению
+    const fin = Math.round(a / 180) * 180;
+    const first = (((fin / 180) % 2) + 2) % 2 === 0 ? 'player' : 'enemy';
+    turnAngle = fin; turnSide = first;
+    turnLastFlip = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    arrow.classList.toggle('down', first === 'player');
+    arrow.classList.toggle('up', first === 'enemy');
+    if (onPick) onPick(first);
+    requestAnimationFrame(() => {
+      arrow.style.transition = 'transform 0.95s cubic-bezier(.16,.85,.24,1), background 0.6s ease';
+      arrow.style.transform = 'rotate(' + fin + 'deg)';
+    });
+  };
+  requestAnimationFrame(tick);
+}
+// отсчёт перед боем: 3-2-1 на каждом поле; первого выбирает рулетка стрелки
 function battleCountdown(done) {
   const dims = [];
   ['battle-my-board', 'enemy-board'].forEach(bid => {
@@ -693,14 +727,9 @@ function battleCountdown(done) {
     requestAnimationFrame(() => d.classList.add('on'));
     dims.push({ d, num });
   });
-  // стрелка мечется между сторонами, замедляясь, и останавливается на случайной
-  const first = Math.random() < 0.5 ? 'player' : 'enemy';
-  const flips = [180, 330, 480, 650, 850, 1100, 1450];
-  flips.forEach((t, i) => setTimeout(() => {
-    if (!state) return;
-    setTurnArrow(i % 2 === 0 ? 'enemy' : 'player');
-  }, t));
-  setTimeout(() => { if (state) setTurnArrow(first); }, 1850);
+  // стрелка-рулетка: крутится с инерцией, замедляется, плавно доезжает к ближайшей стороне
+  let spinFirst = null;
+  spinTurnArrow(1700, f => { spinFirst = f; });
   const seq = ['3', '2', '1'];
   let i = 0;
   const show = () => {
@@ -721,7 +750,7 @@ function battleCountdown(done) {
     if (i < seq.length) setTimeout(show, 700);
     else setTimeout(() => {
       dims.forEach(o => o.d.classList.remove('on'));
-      setTimeout(() => { dims.forEach(o => o.d.remove()); done(first); }, 330);
+      setTimeout(() => { dims.forEach(o => o.d.remove()); done(spinFirst || (Math.random() < 0.5 ? 'player' : 'enemy')); }, 330);
     }, 640);
   };
   show();
@@ -834,6 +863,13 @@ function setTurnArrow(who) {
     }, p1 * 1000);
   }
 }
+// маркер клетки: класс + через полсекунды «закрепление» (animation: none) —
+// перезапуск CSS-анимаций Safari-ом больше не заставит маркеры мигать
+function cellSettle(el) {
+  if (!el) return;
+  clearTimeout(el._stlT);
+  el._stlT = setTimeout(() => el.classList.add('stl'), 600);
+}
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -854,6 +890,7 @@ function sinkShipSmooth(boardId, side, ship) {
     if (!el) return;
     // переводим в sunk (фон и маркер совпадают с hit — без скачка)
     el.classList.add('sunk');
+    cellSettle(el);
     el.classList.remove('hit');
     const applyFilled = () => {
       el.classList.add('filled');
@@ -896,11 +933,16 @@ function sinkShipSmooth(boardId, side, ship) {
       cell.shot = true; around.push({ r: nr, c: nc });
     }
   });
+  around.sort((a, b) => (a.r + a.c) - (b.r + b.c) || a.r - b.r);   // волна: с левого-верхнего к правому-нижнему
   around.forEach((pos, i) => {
     setTimeout(() => {
       const el = getCellEl(boardId, pos.r, pos.c);
-      if (el) el.classList.add('miss');
-    }, waveDone + i * 35);
+      if (!el) return;
+      el.style.transition = 'background 0.4s ease, box-shadow 0.4s ease';   // локально: плавное проявление фона
+      el.classList.add('miss');
+      cellSettle(el);
+      setTimeout(() => { el.style.transition = ''; }, 520);
+    }, waveDone + i * 55);
   });
 }
 
@@ -929,7 +971,7 @@ function shootEnemyCell(r, c) {
   if (cell.shipId !== null) {
     const ship = state.enemy.ships[cell.shipId];
     ship.hits++;
-    if (el) { el.classList.add('hit'); el.classList.remove('radar-ship', 'radar-dot'); }
+    if (el) { el.classList.add('hit'); el.classList.remove('radar-ship', 'radar-dot'); cellSettle(el); }
     state.combo = (state.combo || 0) + 1;
     state.missStreak = 0;
     if (state.combo >= 2) {
@@ -953,13 +995,13 @@ function shootEnemyCell(r, c) {
   const mine = arsGetMineAt(state.ars && state.ars.enemy, r, c);
   if (mine) {
     mine.hit = true;
-    if (el) { el.classList.add('mine-boom'); el.classList.remove('radar-ship', 'radar-dot'); }
+    if (el) { el.classList.add('mine-boom'); el.classList.remove('radar-ship', 'radar-dot'); cellSettle(el); }
     spawnRipple(el, 'red');
     spawnMineBlast('enemy-board', r, c);
     try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error'); } catch (e) {}
     return 'mine';
   }
-  if (el) { el.classList.add('miss'); el.classList.remove('radar-ship', 'radar-dot'); }
+  if (el) { el.classList.add('miss'); el.classList.remove('radar-ship', 'radar-dot'); cellSettle(el); }
   state.missStreak = (state.missStreak || 0) + 1;
   if (state.missStreak >= 2) { state.combo = 0; hideCombo(); }
   else if (state.combo >= 2) document.getElementById('combo-tag').classList.add('dim');
@@ -1158,7 +1200,7 @@ function aiShootPlayerCell(r, c) {
   if (cell.shipId !== null) {
     const ship = state.player.ships[cell.shipId];
     ship.hits++;
-    if (el) el.classList.add('hit');
+    if (el) { el.classList.add('hit'); cellSettle(el); }
     state.aiHitsOnShip.push({ r, c });
     enqueueAINeighbors({ r, c });
     if (ship.hits >= ship.len) {
@@ -1176,14 +1218,14 @@ function aiShootPlayerCell(r, c) {
   const mine = arsGetMineAt(state.ars && state.ars.player, r, c);
   if (mine) {
     mine.hit = true;
-    if (el) el.classList.add('mine-boom');
+    if (el) { el.classList.add('mine-boom'); cellSettle(el); }
     spawnRipple(el, 'red');
     spawnMineBlast('battle-my-board', r, c);
     arsRenderMyDefense();
     try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
     return 'mine';
   }
-  if (el) el.classList.add('miss');
+  if (el) { el.classList.add('miss'); cellSettle(el); }
   return 'miss';
 }
 function aiTurn() {
@@ -1259,9 +1301,10 @@ const ARS_ORDER = ['shield', 'radar', 'big', 'line', 'mine'];
 // быстрый режим: всё вдвое меньше (в меньшую сторону), без радара
 const ARS_DEF_FAST = {
   shield: { price: 15, max: 1 },
+  radar: { price: 40, max: 1 },   // в быстром — зона 2×2
   big: { price: 22, max: 1 },
   line: { price: 20, max: 1 },
-  mine: { price: 7, max: 2 }
+  mine: { price: 7, max: 3 }
 };
 function ARSD(k) {
   const d = ARS_DEF[k];
@@ -1269,7 +1312,13 @@ function ARSD(k) {
   const f = ARS_DEF_FAST[k];
   return f ? Object.assign({}, d, f) : d;
 }
-function ARSO() { return lastMode === 'fast' ? ARS_ORDER.filter(k => k !== 'radar') : ARS_ORDER; }
+function ARSO() { return ARS_ORDER; }
+function RADN() { return lastMode === 'fast' ? 2 : 3; }   // зона радара
+function arsScanZone(r, c) {   // левый-верх зоны скана под тапом
+  const n = RADN();
+  const z0 = v => (n === 3) ? (arsClampCenter(v) - 1) : Math.max(0, Math.min(SIZE - 2, v));
+  return { r0: z0(r), c0: z0(c), n };
+}
 let arsBuy = null;       // купленное (счётчики)
 let arsDefense = null;   // {shields:[rTop..], mines:[{r,c}]} — размещение на своём поле
 let arsShopPhase = false;
@@ -1381,7 +1430,7 @@ function arsShopEnter() {
     }
   }
   document.getElementById('place-board').classList.add('def-mode');
-  document.getElementById('controls').classList.add('hidden');   // рандом/сброс — только для фигур
+  document.getElementById('controls').classList.add('ghost');   // плавно гаснут, место не схлопывается — ничего не прыгает
   arsShopSync();
   arsRenderPlaceOverlays();
 }
@@ -1425,7 +1474,7 @@ function arsShopExit(refund) {
   arsShopPhase = false;
   arsDockMorph(false, 'Далее');
   document.getElementById('place-board').classList.remove('def-mode');
-  document.getElementById('controls').classList.remove('hidden');
+  document.getElementById('controls').classList.remove('ghost');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
 }
@@ -1603,10 +1652,11 @@ function arsFlashShield(boardId, shield) {
   setTimeout(() => d.remove(), 1400);
   if (boardId === 'battle-my-board') arsRenderMyDefense();
 }
-function arsScanFlash(boardId, r0, c0) {
+function arsScanFlash(boardId, r0, c0, n) {
+  n = n || 3;
   const boardEl = document.getElementById(boardId);
   const c1 = boardEl.querySelector('.cell[data-r="' + r0 + '"][data-c="' + c0 + '"]');
-  const c2 = boardEl.querySelector('.cell[data-r="' + (r0 + 2) + '"][data-c="' + (c0 + 2) + '"]');
+  const c2 = boardEl.querySelector('.cell[data-r="' + (r0 + n - 1) + '"][data-c="' + (c0 + n - 1) + '"]');
   if (!c1 || !c2) return;
   const d = document.createElement('div');
   d.className = 'ars-scan';
@@ -1687,6 +1737,10 @@ function arsShowAim(kind, r, c) {
   if (kind === 'line') {
     c1 = boardEl.querySelector('.cell[data-r="' + r + '"][data-c="0"]');
     c2 = boardEl.querySelector('.cell[data-r="' + r + '"][data-c="' + (SIZE - 1) + '"]');
+  } else if (kind === 'radar') {
+    const z = arsScanZone(r, c);
+    c1 = boardEl.querySelector('.cell[data-r="' + z.r0 + '"][data-c="' + z.c0 + '"]');
+    c2 = boardEl.querySelector('.cell[data-r="' + (z.r0 + z.n - 1) + '"][data-c="' + (z.c0 + z.n - 1) + '"]');
   } else {
     const r0 = arsClampCenter(r) - 1, c0 = arsClampCenter(c) - 1;
     c1 = boardEl.querySelector('.cell[data-r="' + r0 + '"][data-c="' + c0 + '"]');
@@ -1765,8 +1819,6 @@ function arsSyncPanel() {
   ['radar', 'big', 'line'].forEach(k => {
     const b = document.getElementById('ars-btn-' + k), bd = document.getElementById('ars-bdg-' + k);
     if (!b) return;
-    if (k === 'radar' && lastMode === 'fast') { b.style.display = 'none'; return; }
-    b.style.display = '';
     let dots = '';
     for (let i = 0; i < ARSD(k).max; i++) dots += '<i class="' + (i < A[k] ? '' : 'off') + '"></i>';
     bd.innerHTML = dots;
@@ -1775,7 +1827,7 @@ function arsSyncPanel() {
     if (A[k] <= 0 && state.armed === k) state.armed = null;
   });
   const hint = document.getElementById('ars-hint');
-  if (state.armed === 'radar') { hint.textContent = 'Радар: тапни центр зоны 3×3'; hint.classList.remove('hidden'); }
+  if (state.armed === 'radar') { hint.textContent = 'Радар: тапни зону ' + RADN() + '×' + RADN(); hint.classList.remove('hidden'); }
   else if (state.armed === 'big') { hint.textContent = 'Бомба: тапни центр зоны 3×3'; hint.classList.remove('hidden'); }
   else if (state.armed === 'line') { hint.textContent = 'Залп: тапни строку'; hint.classList.remove('hidden'); }
   else hint.classList.add('hidden');
@@ -1790,9 +1842,9 @@ function arsPlayerUse(r, c) {
   state.armed = null;
   if (kind === 'radar' && A.radar > 0) {
     A.radar--; arsSyncPanel();
-    const r0 = arsClampCenter(r) - 1, c0 = arsClampCenter(c) - 1;
-    arsScanFlash('enemy-board', r0, c0);
-    for (let rr = r0; rr <= r0 + 2; rr++) for (let cc = c0; cc <= c0 + 2; cc++) {
+    const z = arsScanZone(r, c), r0 = z.r0, c0 = z.c0;
+    arsScanFlash('enemy-board', r0, c0, z.n);
+    for (let rr = r0; rr <= r0 + z.n - 1; rr++) for (let cc = c0; cc <= c0 + z.n - 1; cc++) {
       const cell = state.enemy.board[rr][cc];
       if (cell.shot || cell.shipId === null) continue;          // отмечаем только корабли
       radarBlinkCell('enemy-board', rr, cc);                    // силуэт мигает и исчезает — запоминай
@@ -1838,24 +1890,25 @@ function aiTryArsenal() {
   if (A.big > 0 && Math.random() < 0.25) { aiUseBig(); return true; }
   return false;
 }
-function aiZonePick() {
-  // зона с максимумом непрострелянных клеток
+function aiZonePick(n) {
+  n = n || 3;   // зона с максимумом непрострелянных клеток
   let best = null, bv = -1;
   for (let t = 0; t < 14; t++) {
-    const r0 = 1 + Math.floor(Math.random() * (SIZE - 2)) - 1, c0 = 1 + Math.floor(Math.random() * (SIZE - 2)) - 1;
-    const rr0 = Math.max(0, Math.min(SIZE - 3, r0)), cc0 = Math.max(0, Math.min(SIZE - 3, c0));
+    const r0 = Math.floor(Math.random() * SIZE), c0 = Math.floor(Math.random() * SIZE);
+    const rr0 = Math.max(0, Math.min(SIZE - n, r0)), cc0 = Math.max(0, Math.min(SIZE - n, c0));
     let v = 0;
-    for (let rr = rr0; rr <= rr0 + 2; rr++) for (let cc = cc0; cc <= cc0 + 2; cc++) if (!state.player.board[rr][cc].shot) v++;
+    for (let rr = rr0; rr <= rr0 + n - 1; rr++) for (let cc = cc0; cc <= cc0 + n - 1; cc++) if (!state.player.board[rr][cc].shot) v++;
     if (v > bv) { bv = v; best = { r0: rr0, c0: cc0 }; }
   }
   return best;
 }
 function aiUseRadar() {
   const A = state.ars.enemy; A.radar--;
-  const z = aiZonePick();
-  arsScanFlash('battle-my-board', z.r0, z.c0);
+  const n = RADN();
+  const z = aiZonePick(n);
+  arsScanFlash('battle-my-board', z.r0, z.c0, n);
   state.aiKnown = state.aiKnown || [];
-  for (let rr = z.r0; rr <= z.r0 + 2; rr++) for (let cc = z.c0; cc <= z.c0 + 2; cc++) {
+  for (let rr = z.r0; rr <= z.r0 + n - 1; rr++) for (let cc = z.c0; cc <= z.c0 + n - 1; cc++) {
     const cell = state.player.board[rr][cc];
     if (!cell.shot && cell.shipId !== null) state.aiKnown.push({ r: rr, c: cc });
   }
@@ -1979,7 +2032,7 @@ function flyBomb(boardId, r, c, fromRight, cb) {
   w.style.transform = 'translate(' + sx + 'px,' + p.y + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
   flyHost().appendChild(w);
-  const T = 820;
+  const T = 1080;
   const arc = Math.round(p.w * 2.6);                 // высота дуги тоже от клетки
   requestAnimationFrame(() => {
     w.style.transition = 'transform ' + T + 'ms linear';
@@ -2014,7 +2067,7 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
   w.style.transform = 'translate(' + sx + 'px,' + splitY + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
   flyHost().appendChild(w);
-  const T1 = 600;
+  const T1 = 780;
   const arc = Math.round(pc.w * 2.6);
   requestAnimationFrame(() => {
     w.style.transition = 'transform ' + T1 + 'ms linear';
@@ -2038,7 +2091,7 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
       m.appendChild(mi);
       m.style.transform = 'translate(' + splitX + 'px,' + peakY + 'px)';
       flyHost().appendChild(m);
-      const D = 330 + i * 80;
+      const D = 430 + i * 90;
       requestAnimationFrame(() => {
         m.style.transition = 'transform ' + D + 'ms cubic-bezier(.45,.1,.75,.5)';
         m.style.transform = 'translate(' + (tp ? tp.x : splitX) + 'px,' + (tp ? tp.y : splitY) + 'px)';
