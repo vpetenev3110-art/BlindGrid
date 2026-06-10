@@ -1353,7 +1353,7 @@ function mkRI(i, into, need) {
   const r = RANKS[i];
   const name = r.tier ? (r.catName + ' ' + ROMAN[r.tier]) : r.catName;
   const frac = need === Infinity ? 1 : Math.max(0, Math.min(1, into / need));
-  const bw = r.cat === 'absolute' ? 4.5 : (2 + r.tier * 0.7);
+  const bw = r.cat === 'absolute' ? 5 : (2 + r.tier * 0.9);
   return { index: i, cat: r.cat, catName: r.catName, tier: r.tier, name: name, c1: r.c1, c2: r.c2, into: into, need: need, frac: frac, bw: bw };
 }
 function rankInfo(total) {
@@ -1373,17 +1373,49 @@ function hexA(hex, a) {
   const n = parseInt(f, 16);
   return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
 }
+// Узор рамки — у каждой категории свой (минималистичные CSS-градиенты поверх цвета),
+// тир усиливает: контраст узора, толщина, свечение, у II–III внутреннее светлое кольцо
+function framePattern(cat, a) {
+  const w = 'rgba(255,255,255,', d = 'rgba(0,0,0,';
+  switch (cat) {
+    case 'bronze':    // тонкие диагональные штрихи
+      return 'repeating-linear-gradient(45deg,' + w + a + ') 0 1.5px,transparent 1.5px 6px)';
+    case 'iron':      // вертикальные «клёпки»-полосы
+      return 'repeating-linear-gradient(90deg,' + d + a + ') 0 2px,transparent 2px 7px)';
+    case 'silver':    // глянцевый блик сверху
+      return 'linear-gradient(160deg,' + w + (a * 1.6).toFixed(3) + ') 0%,transparent 38%,' + d + a + ') 100%)';
+    case 'gold':      // мягкие лучи
+      return 'repeating-conic-gradient(from 20deg,' + w + a + ') 0deg 13deg,transparent 13deg 45deg)';
+    case 'diamond':   // фасеты-ромбы
+      return 'repeating-linear-gradient(45deg,' + w + a + ') 0 1.5px,transparent 1.5px 8px),repeating-linear-gradient(-45deg,' + w + a + ') 0 1.5px,transparent 1.5px 8px)';
+    case 'emerald':   // широкие грани-шевроны
+      return 'repeating-linear-gradient(135deg,' + w + a + ') 0 3px,transparent 3px 10px)';
+    case 'ruby':      // кольца-огранка из центра
+      return 'repeating-radial-gradient(circle at 50% 50%,' + w + a + ') 0 1.5px,transparent 1.5px 7px)';
+    case 'brilliant': // искристая сетка
+      return 'repeating-linear-gradient(30deg,' + w + a + ') 0 1px,transparent 1px 5px),repeating-linear-gradient(150deg,' + w + a + ') 0 1px,transparent 1px 5px)';
+    default: return '';
+  }
+}
 function styleFrame(el, ri) {
   if (!el) return;
   el.style.padding = ri.bw + 'px';
-  const glow = (ri.tier === 3 || ri.cat === 'absolute') ? 14 : (ri.tier === 2 ? 9 : 6);
-  el.style.boxShadow = '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
+  const glow = (ri.tier === 3 || ri.cat === 'absolute') ? 15 : (ri.tier === 2 ? 10 : 6);
+  let shadow = '0 0 ' + glow + 'px ' + hexA(ri.c1, 0.55) + ', 0 4px 14px -6px ' + hexA(ri.c1, 0.5);
+  // II–III тир: внутреннее светлое кольцо (на III — ярче)
+  if (ri.tier === 2) shadow += ', inset 0 0 0 1px rgba(255,255,255,0.34)';
+  if (ri.tier === 3) shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.55)';
+  if (ri.cat === 'absolute') shadow += ', inset 0 0 0 1.5px rgba(255,255,255,0.65)';
+  el.style.boxShadow = shadow;
   if (ri.cat === 'absolute') {
     el.classList.add('absolute-frame');
     el.style.background = 'conic-gradient(from 0deg,#ff5d8f,#ffbf4d,#4fcac4,#6c80f5,#ff5d8f)';
   } else {
     el.classList.remove('absolute-frame');
-    el.style.background = 'linear-gradient(135deg,' + ri.c1 + ',' + ri.c2 + ')';
+    const a = (0.10 + ri.tier * 0.07).toFixed(3);   // узор контрастнее с тиром
+    const pat = framePattern(ri.cat, a);
+    const base = 'linear-gradient(135deg,' + ri.c1 + ',' + ri.c2 + ')';
+    el.style.background = pat ? (pat + ',' + base) : base;
   }
 }
 function pfDisplayName() {
@@ -1399,7 +1431,7 @@ function setAvatar(el) {
 
 // окна профиля (экраны выбора соперника и режима)
 let pfIndex = 0;
-const PF_GAP = 12;
+const PF_GAP = 0;
 function pfWindows() { return Array.prototype.slice.call(document.querySelectorAll('.pf-window')); }
 function pfSlideEl(idx, cur) {
   const r = RANKS[idx];
@@ -1423,11 +1455,15 @@ function pfLayout(win, animate) {
   const vp = win._vp, track = win._track;
   if (!vp || !track || !track.children.length) return;
   const Vw = vp.clientWidth; if (!Vw) return;   // окно скрыто — посчитаем при показе
-  const Cw = Math.round(Vw * 0.86);
+  const Cw = Vw;   // карточка на всю ширину — соседи не выглядывают
+  if (track._cwSet !== Cw) {   // ширины ставим только при первом показе/resize
+    track._cwSet = Cw;
+    for (let i = 0; i < track.children.length; i++) track.children[i].style.width = Cw + 'px';
+  }
   track._cw = Cw; track._step = Cw + PF_GAP;
-  for (let i = 0; i < track.children.length; i++) {
-    track.children[i].style.width = Cw + 'px';
-    track.children[i].classList.toggle('pf-active', i === pfIndex);
+  if (track._actSet !== pfIndex) {   // классы трогаем только при смене индекса
+    track._actSet = pfIndex;
+    for (let i = 0; i < track.children.length; i++) track.children[i].classList.toggle('pf-active', i === pfIndex);
   }
   const tx = -(pfIndex * track._step) + (Vw - Cw) / 2;
   track.style.transition = animate ? 'transform 0.32s cubic-bezier(.22,.9,.32,1)' : 'none';
@@ -1496,6 +1532,7 @@ function renderProfile() {
     win._track = win.querySelector('.pf-track');
     if (!win._vp || !win._track) return;
     win._track.innerHTML = '';
+    win._track._cwSet = null; win._track._actSet = null;   // слайды новые — кэш раскладки сброшен
     for (let i = 0; i < RANKS.length; i++) {
       const sl = pfSlideEl(i, cur);
       if (i === cur.index) sl.classList.add('pf-self');

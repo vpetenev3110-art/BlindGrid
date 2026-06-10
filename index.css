@@ -950,14 +950,15 @@
   #mode-select:not(.hidden) .pf-window { opacity: 1; }
   @keyframes pf-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: translateY(0); } }
   .pf-viewport { overflow: hidden; width: 100%; }
-  .pf-track { display: flex; gap: 12px; will-change: transform; }
+  .pf-track { display: flex; will-change: transform; }
   .pf-slide {
     flex: 0 0 auto; display: flex; align-items: center; gap: 13px;
-    opacity: 0.42; transform: scale(0.94);
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-sizing: border-box; padding: 0 2px;
+    opacity: 0.45;
+    transition: opacity 0.25s ease;
   }
-  .pf-slide.pf-active { opacity: 0.78; transform: scale(1); }   /* в центре, но не твой ранг — приглушён */
-  .pf-slide.pf-active.pf-self { opacity: 1; }                   /* твой текущий ранг — яркий */
+  .pf-slide.pf-active { opacity: 0.45; }        /* в центре, но не твой ранг — сильно приглушён */
+  .pf-slide.pf-active.pf-self { opacity: 1; }   /* твой текущий ранг — яркий */
   .pf-scrollbar {
     height: 4px; margin: 9px 0 0; border-radius: 999px;
     background: rgba(120,110,160,0.16); position: relative;
