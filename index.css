@@ -1516,3 +1516,25 @@
     #dock { margin-top: 10px; }
     .mode-topbar { padding-top: 10px; }
   }
+
+  /* ===== фаза арсенала: поле уступает место магазину и кнопке «Играть» ===== */
+  #place-board, #place-board-wrap .board-label {
+    transition: max-width 0.5s cubic-bezier(.3,.85,.3,1);
+  }
+  /* в фазе арсенала поле сжимается под доступную высоту (на больших экранах не меняется) */
+  #place-board.def-mode,
+  #place-board-wrap.def .board-label {
+    max-width: min(var(--board-w, 320px), calc(100vh - 446px));
+  }
+  /* низкие экраны: компактнее магазин и кнопка */
+  @media (max-height: 820px) {
+    #play-btn { padding: 14px; font-size: 13.5px; }
+    #dock { margin-top: 8px; }
+    #dock.shop-mode { padding: 8px 10px 7px; }
+    #dock.shop-mode #dock-shop { gap: 5px; }
+    #dshop-grid { gap: 6px; }
+    .ars-tile { padding: 4px 5px 3px; border-radius: 10px; }
+    .ars-tile .t-ico { width: 18px; height: 18px; }
+    #dshop-reset, #dshop-back { padding: 6px 0; }
+    #play-window { margin-top: 6px; }
+  }

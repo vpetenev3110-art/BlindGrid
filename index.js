@@ -317,6 +317,7 @@ function startPlacement() {
   placeGen++;   // всё отложенное из прошлой расстановки больше не выполнится
   { const dk = document.getElementById('dock'); if (dk) dk._morphing = false; }   // застрявший морф-гард не блокирует «Далее»
   arsBuy = null; arsDefense = null; arsShopPhase = false;
+  { const w = document.getElementById('place-board-wrap'); if (w) w.classList.remove('def'); }
   { const dp = document.getElementById('dock-pieces'); if (dp) dp._snap = true; }   // первый рендер дока без анимации
   state = null;   // старый бой мёртв: его таймеры (aiTurn и пр.) дальше не действуют
   document.querySelectorAll('.battle-cd, .board-cd, .skip-dim').forEach(e => e.remove());
@@ -1448,6 +1449,7 @@ function arsShopEnter() {
     }
   }
   document.getElementById('place-board').classList.add('def-mode');
+  { const w = document.getElementById('place-board-wrap'); if (w) w.classList.add('def'); }
   document.getElementById('controls').classList.add('ghost');   // плавно гаснут, место не схлопывается — ничего не прыгает
   arsShopSync();
   arsRenderPlaceOverlays();
@@ -1492,6 +1494,7 @@ function arsShopExit(refund) {
   arsShopPhase = false;
   arsDockMorph(false, 'Далее');
   document.getElementById('place-board').classList.remove('def-mode');
+  { const w = document.getElementById('place-board-wrap'); if (w) w.classList.remove('def'); }
   document.getElementById('controls').classList.remove('ghost');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
