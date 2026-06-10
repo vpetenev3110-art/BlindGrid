@@ -167,6 +167,7 @@ function applyMode(mode) {
 
 let placement = null;
 let state = null;
+let placeGen = 0;   // поколение расстановки: замороженные iOS-таймеры прошлых сессий отсекаются гардами
 
 function freshBoard() {
   const b = [];
@@ -313,6 +314,8 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
 }
 
 function startPlacement() {
+  placeGen++;   // всё отложенное из прошлой расстановки больше не выполнится
+  { const dk = document.getElementById('dock'); if (dk) dk._morphing = false; }   // застрявший морф-гард не блокирует «Далее»
   arsBuy = null; arsDefense = null; arsShopPhase = false;
   { const dp = document.getElementById('dock-pieces'); if (dp) dp._snap = true; }   // первый рендер дока без анимации
   state = null;   // старый бой мёртв: его таймеры (aiTurn и пр.) дальше не действуют
@@ -676,7 +679,8 @@ function resetWithAnimation() {
     el.style.top = (parseFloat(el.style.top) + fallH) + 'px';
     el.style.opacity = '0';
   });
-  setTimeout(startPlacement, 420);
+  const gen = placeGen;
+  setTimeout(() => { if (gen === placeGen) startPlacement(); }, 420);   // оттаявший таймер чужого поколения молчит
 }
 
 // рулетка стрелки: разгон → инерционное затухание → плавный доезд к ближайшей стороне
@@ -734,8 +738,10 @@ function battleCountdown(done) {
   let spinFirst = null;
   spinTurnArrow(1700, f => { spinFirst = f; });
   const seq = ['3', '2', '1'];
+  const st0 = state;
   let i = 0;
   const show = () => {
+    if (state !== st0 || !state) { dims.forEach(o => o.d.remove()); return; }   // бой сменился — отсчёт мёртв
     dims.forEach(o => {
       o.num.textContent = seq[i];
       o.num.style.transition = 'none';
@@ -1383,11 +1389,13 @@ function arsDockMorph(toShop, label) {
   const dock = document.getElementById('dock');
   if (dock._morphing) return;
   dock._morphing = true;
+  const gen = placeGen;
   setTimeout(() => { dock._morphing = false; }, 700);
   const out = toShop ? [document.getElementById('dock-title'), document.getElementById('dock-pieces')] : [document.getElementById('dock-shop')];
   const inn = toShop ? [document.getElementById('dock-shop')] : [document.getElementById('dock-title'), document.getElementById('dock-pieces')];
   out.forEach(el => { if (el) { el.style.transition = 'opacity 0.24s ease'; el.style.opacity = '0'; } });
   setTimeout(() => {
+    if (gen !== placeGen) { dock._morphing = false; out.forEach(el => { if (el) { el.style.transition = ''; el.style.opacity = ''; } }); return; }   // расстановка сменилась — морф мёртв
     const h0 = dock.offsetHeight;
     if (label) setPlayBtnLabel(label);   // лейбл меняем пока контент скрыт — без скачка
     dock.classList.toggle('shop-mode', toShop);
@@ -1399,7 +1407,7 @@ function arsDockMorph(toShop, label) {
       void dock.offsetWidth;
       dock.style.transition = 'height 0.55s cubic-bezier(.3,.85,.3,1), max-width 0.55s cubic-bezier(.3,.85,.3,1), padding 0.55s cubic-bezier(.3,.85,.3,1)';
       dock.style.height = h1 + 'px';
-      setTimeout(() => { dock.style.height = ''; dock.style.overflow = ''; dock.style.transition = ''; }, 590);
+      setTimeout(() => { if (gen !== placeGen) return; dock.style.height = ''; dock.style.overflow = ''; dock.style.transition = ''; }, 590);
     }
     requestAnimationFrame(() => requestAnimationFrame(() => {
       inn.forEach(el => {
