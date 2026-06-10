@@ -3399,9 +3399,10 @@ window.addEventListener('keydown', e => {
 // ===================== РЕЖИМ «АРЕНА» — свободное движение, как slither.io =====================
 // Непрерывные координаты на тороидальном поле 13×20: змейка плывёт под любым углом,
 // поворачивает к цели с ограниченной скоростью, тело тянется по следу головы.
-const ARENA_COLS = 13, ARENA_ROWS = 20, ARENA_FRUITS = 3;
+const ARENA_COLS = 13, ARENA_FRUITS = 3;
+let ARENA_ROWS = 20;            // подбирается под высоту экрана при полной ширине поля
 const ARENA_SPEED = 5.0;        // клеток в секунду
-const ARENA_TURN = 6.2;         // рад/с — скорость доворота
+const ARENA_TURN = 5.2;         // рад/с — мягче дуги, тела без изломов
 const ARENA_SEG = 0.62;         // расстояние между сегментами тела
 const ARENA_START_SEG = 5, ARENA_MAX_SEG = 20;
 const ARENA_HITR = 0.6;         // радиус столкновения с телом соперника
@@ -3416,6 +3417,14 @@ function arenaDist(ax, ay, bx, by) {   // расстояние с учётом �
 function buildArenaField() {
   const host = document.getElementById('arena-field');
   host.innerHTML = '';
+  // поле во всю ширину; рядов — сколько помещается по высоте (клетки крупные)
+  const holder = document.getElementById('arena-field-holder');
+  const hb = holder ? holder.getBoundingClientRect() : { width: 0, height: 0 };
+  if (hb.width > 0 && hb.height > 0) {
+    const cell = hb.width / ARENA_COLS;
+    ARENA_ROWS = Math.max(13, Math.min(20, Math.floor(hb.height / cell)));
+  } else ARENA_ROWS = 20;
+  host.style.aspectRatio = ARENA_COLS + ' / ' + ARENA_ROWS;
   const svg = svgEl('svg', { class: 'arena-svg', viewBox: '0 0 ' + ARENA_COLS + ' ' + ARENA_ROWS, preserveAspectRatio: 'xMidYMid meet' });
   // клип по границам поля: торус-клоны не видны за краями
   const defs = svgEl('defs', {});
