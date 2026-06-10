@@ -316,6 +316,8 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
 function startPlacement() {
   placeGen++;   // всё отложенное из прошлой расстановки больше не выполнится
   { const dk = document.getElementById('dock'); if (dk) dk._morphing = false; }   // застрявший морф-гард не блокирует «Далее»
+  { const pb = document.getElementById('place-board'); if (pb) { pb.style.maxWidth = ''; pb.style.transition = ''; }
+    const lb = document.querySelector('#place-board-wrap .board-label'); if (lb) { lb.style.maxWidth = ''; lb.style.transition = ''; } }   // инлайны прерванного морфа
   arsBuy = null; arsDefense = null; arsShopPhase = false;
   { const w = document.getElementById('place-board-wrap'); if (w) w.classList.remove('def'); }
   { const dp = document.getElementById('dock-pieces'); if (dp) dp._snap = true; }   // первый рендер дока без анимации
@@ -1448,9 +1450,7 @@ function arsShopEnter() {
       document.getElementById('dshop-back').addEventListener('click', () => arsShopExit(true));
     }
   }
-  document.getElementById('place-board').classList.add('def-mode');
-  { const w = document.getElementById('place-board-wrap'); if (w) w.classList.add('def'); }
-  { const gen = placeGen; setTimeout(() => { if (gen === placeGen && arsShopPhase) placeRelayoutAfterResize(); }, 540); }   // поле сжалось — фигуры на новые клетки
+  placeMorphFieldSmooth(true);   // поле и фигуры сжимаются вместе, одним изингом
   document.getElementById('controls').classList.add('ghost');   // плавно гаснут, место не схлопывается — ничего не прыгает
   arsShopSync();
   arsRenderPlaceOverlays();
@@ -1494,12 +1494,10 @@ function arsShopExit(refund) {
   }
   arsShopPhase = false;
   arsDockMorph(false, 'Далее');
-  document.getElementById('place-board').classList.remove('def-mode');
-  { const w = document.getElementById('place-board-wrap'); if (w) w.classList.remove('def'); }
-  document.getElementById('controls').classList.remove('ghost');
   const pb = document.getElementById('place-board');
-  pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
-  { const gen = placeGen; setTimeout(() => { if (gen === placeGen && !arsShopPhase) placeRelayoutAfterResize(); }, 540); }   // поле выросло обратно — фигуры на новые клетки
+  pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());   // оверлеи убираем ДО морфа — едут только фигуры
+  placeMorphFieldSmooth(false);   // поле и фигуры растут вместе
+  document.getElementById('controls').classList.remove('ghost');
 }
 function arsBuyItem(k) {
   const d = ARSD(k);
@@ -1525,6 +1523,53 @@ function arsShopSync() {
   });
 }
 
+// плавный морф размера поля: FLIP — поле и каждая фигура едут синхронно, без скачка
+function placeMorphFieldSmooth(addDef) {
+  const pb = document.getElementById('place-board');
+  const wrap = document.getElementById('place-board-wrap');
+  const lbl = wrap ? wrap.querySelector('.board-label') : null;
+  const layer = pb.querySelector('.ship-layer');
+  const pieces = layer ? Array.from(layer.querySelectorAll('.ship-piece')) : [];
+  // СТАРЫЕ боксы
+  const olds = pieces.map(el => ({ el, L: el.offsetLeft, T: el.offsetTop, W: el.offsetWidth, H: el.offsetHeight }));
+  const w0 = pb.offsetWidth;
+  // мгновенно применяем КОНЕЧНОЕ состояние (классы + точная укладка фигур)
+  pb.style.transition = 'none';
+  if (lbl) lbl.style.transition = 'none';
+  pb.classList.toggle('def-mode', addDef);
+  if (wrap) wrap.classList.toggle('def', addDef);
+  void pb.offsetWidth;
+  if (placement) renderShipLayer('place-board', placement.pieces, null, null, true);
+  const w1 = pb.offsetWidth;
+  if (!w0 || w0 === w1) {   // размер не меняется (большой экран) — морф не нужен
+    pb.style.transition = ''; if (lbl) lbl.style.transition = '';
+    return;
+  }
+  const news = pieces.map(el => ({ el, L: el.offsetLeft, T: el.offsetTop, W: el.offsetWidth, H: el.offsetHeight }));
+  // FLIP: возвращаем старую геометрию без переходов
+  pb.style.maxWidth = w0 + 'px';
+  if (lbl) lbl.style.maxWidth = w0 + 'px';
+  olds.forEach(o => { o.el.style.transition = 'none'; o.el.style.left = o.L + 'px'; o.el.style.top = o.T + 'px'; o.el.style.width = o.W + 'px'; o.el.style.height = o.H + 'px'; });
+  void pb.offsetWidth;
+  // и едем к новой — всё одной кривой
+  const ease = '0.5s cubic-bezier(.3,.85,.3,1)';
+  pb.style.transition = 'max-width ' + ease;
+  if (lbl) lbl.style.transition = 'max-width ' + ease;
+  pb.style.maxWidth = '';
+  if (lbl) lbl.style.maxWidth = '';
+  news.forEach(n => {
+    n.el.style.transition = 'left ' + ease + ', top ' + ease + ', width ' + ease + ', height ' + ease;
+    n.el.style.left = n.L + 'px'; n.el.style.top = n.T + 'px'; n.el.style.width = n.W + 'px'; n.el.style.height = n.H + 'px';
+  });
+  const gen = placeGen;
+  setTimeout(() => {
+    if (gen !== placeGen) return;
+    pb.style.transition = ''; if (lbl) lbl.style.transition = '';
+    pieces.forEach(el => { el.style.transition = ''; });
+    if (placement) renderShipLayer('place-board', placement.pieces, null, null, true);   // точная фиксация
+    if (arsShopPhase) arsRenderPlaceOverlays();
+  }, 560);
+}
 // поле сменило размер (морф фазы арсенала): фигуры и оверлеи пере-укладываются по новым клеткам
 function placeRelayoutAfterResize() {
   if (!placement) return;
