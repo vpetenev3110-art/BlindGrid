@@ -878,7 +878,7 @@ function sinkShipSmooth(boardId, side, ship) {
       const fadeDelay = cells.length * step * 0.4;
       setTimeout(() => {
         pieceEl.classList.add('fade-out');
-        setTimeout(() => renderShipLayer(boardId, side.ships.filter(s => !s.sunk)), 950);
+        setTimeout(() => pieceEl.remove(), 950);   // точечно: остальные фигуры не пересоздаются и не мигают
       }, fadeDelay);
     } else {
       renderShipLayer(boardId, side.ships.filter(s => !s.sunk));
@@ -1381,6 +1381,7 @@ function arsShopEnter() {
     }
   }
   document.getElementById('place-board').classList.add('def-mode');
+  document.getElementById('controls').classList.add('hidden');   // рандом/сброс — только для фигур
   arsShopSync();
   arsRenderPlaceOverlays();
 }
@@ -1424,6 +1425,7 @@ function arsShopExit(refund) {
   arsShopPhase = false;
   arsDockMorph(false, 'Далее');
   document.getElementById('place-board').classList.remove('def-mode');
+  document.getElementById('controls').classList.remove('hidden');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
 }
@@ -1552,25 +1554,39 @@ function arsBandRect(boardEl, rTop) {
 }
 function arsRenderDefOverlays(boardId, shieldTops, mines) {
   const boardEl = document.getElementById(boardId);
-  boardEl.querySelectorAll('.ars-band:not(.flash), .ars-mine').forEach(e => e.remove());   // flash-полосу не трогаем
+  const host = fxLayer(boardId) || boardEl;
+  // дифф по ключам: неизменённые полосы/мины не пересоздаются (и не мигают)
+  const want = new Map();
   (shieldTops || []).forEach(s => {
     const rTop = (typeof s === 'number') ? s : s.rTop;
     if (typeof s === 'object' && s.used) return;   // потраченный щит исчезает
-    const rc = arsBandRect(boardEl, rTop); if (!rc) return;
-    const d = document.createElement('div');
-    d.className = 'ars-band';
-    d.style.cssText = 'left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px';
-    (fxLayer(boardId) || boardEl).appendChild(d);
+    want.set('b' + rTop, { kind: 'band', rTop });
   });
   (mines || []).forEach(m => {
     if (m.hit) return;
-    const cell = boardEl.querySelector('.cell[data-r="' + m.r + '"][data-c="' + m.c + '"]');
-    if (!cell) return;
-    const d = document.createElement('div');
-    d.className = 'ars-mine';
-    const sz = Math.round(cell.offsetWidth * 0.72);
-    d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
-    (fxLayer(boardId) || boardEl).appendChild(d);
+    want.set('m' + m.r + '_' + m.c, { kind: 'mine', r: m.r, c: m.c });
+  });
+  boardEl.querySelectorAll('.ars-band:not(.flash), .ars-mine').forEach(e => {
+    const k = e.dataset.ok;
+    if (k && want.has(k)) want.delete(k);   // уже на месте
+    else e.remove();                         // лишний — убрать
+  });
+  want.forEach((v, k) => {
+    if (v.kind === 'band') {
+      const rc = arsBandRect(boardEl, v.rTop); if (!rc) return;
+      const d = document.createElement('div');
+      d.className = 'ars-band'; d.dataset.ok = k;
+      d.style.cssText = 'left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px';
+      host.appendChild(d);
+    } else {
+      const cell = boardEl.querySelector('.cell[data-r="' + v.r + '"][data-c="' + v.c + '"]');
+      if (!cell) return;
+      const d = document.createElement('div');
+      d.className = 'ars-mine'; d.dataset.ok = k;
+      const sz = Math.round(cell.offsetWidth * 0.72);
+      d.style.cssText = 'left:' + (cell.offsetLeft + (cell.offsetWidth - sz) / 2) + 'px;top:' + (cell.offsetTop + (cell.offsetHeight - sz) / 2) + 'px;width:' + sz + 'px;height:' + sz + 'px';
+      host.appendChild(d);
+    }
   });
 }
 function arsFlashShield(boardId, shield) {
@@ -1580,8 +1596,8 @@ function arsFlashShield(boardId, shield) {
   const d = document.createElement('div');
   d.className = 'ars-band flash';
   d.style.cssText = 'left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px;opacity:1;transition:opacity 0.5s ease 0.7s';
-  boardEl.appendChild(d);
-  jsShake(boardEl);
+  (fxLayer(boardId) || boardEl).appendChild(d);   // в fx-слой: вставка в board перезапускает переходы фигур
+  jsShake(fxLayer(boardId));
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
   setTimeout(() => { d.style.opacity = '0'; }, 60);
   setTimeout(() => d.remove(), 1400);
@@ -1937,7 +1953,7 @@ function bombShatter(x, y, color) {
     if (color) s.style.background = color;
     s.style.transform = 'translate(' + (x - 2) + 'px,' + (y - 2) + 'px)';
     s.style.opacity = '1';
-    document.body.appendChild(s);
+    flyHost().appendChild(s);
     const a = Math.random() * Math.PI * 2, dist = 26 + Math.random() * 34;
     requestAnimationFrame(() => {
       s.style.transition = 'transform 0.45s cubic-bezier(.2,.6,.4,1), opacity 0.45s ease';
@@ -1962,7 +1978,7 @@ function flyBomb(boardId, r, c, fromRight, cb) {
   const sx = fromRight ? window.innerWidth + 50 : -50;
   w.style.transform = 'translate(' + sx + 'px,' + p.y + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
-  document.body.appendChild(w);
+  flyHost().appendChild(w);
   const T = 820;
   const arc = Math.round(p.w * 2.6);                 // высота дуги тоже от клетки
   requestAnimationFrame(() => {
@@ -1997,7 +2013,7 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
   const splitY = pc.y;
   w.style.transform = 'translate(' + sx + 'px,' + splitY + 'px)';
   inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
-  document.body.appendChild(w);
+  flyHost().appendChild(w);
   const T1 = 600;
   const arc = Math.round(pc.w * 2.6);
   requestAnimationFrame(() => {
@@ -2021,7 +2037,7 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
       mi.style.transform = 'translate(-50%,-50%) scale(1.1)';
       m.appendChild(mi);
       m.style.transform = 'translate(' + splitX + 'px,' + peakY + 'px)';
-      document.body.appendChild(m);
+      flyHost().appendChild(m);
       const D = 330 + i * 80;
       requestAnimationFrame(() => {
         m.style.transition = 'transform ' + D + 'ms cubic-bezier(.45,.1,.75,.5)';
@@ -2223,6 +2239,17 @@ document.getElementById('play-btn').addEventListener('click', () => {
 });
 
 setTimeout(() => { try { syncMenuVersion(!document.getElementById('menu').classList.contains('hidden')); } catch (e) {} }, 0);
+// постоянный слой полётов: вставка снарядов в body заставляет Safari переигрывать переходы по всему документу
+function flyHost() {
+  let h = document.getElementById('fly-layer');
+  if (!h) {
+    h = document.createElement('div');
+    h.id = 'fly-layer';
+    h.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;z-index:95;pointer-events:none';
+    document.body.appendChild(h);
+  }
+  return h;
+}
 // крестик в шапке игры: с расстановки (и из арсенала) — выход на экран выбора режима
 setTimeout(() => {
   const x = document.querySelector('#title .logo-cross');
@@ -3757,20 +3784,15 @@ function arenaLoop() {
       if (aiHit) arenaDeath(ai);
       // самоукус: врезался в собственный хвост — съедает себя до минимума (кругами не отсидишься)
       const selfBite = (side, pts) => {
-        if (side.state !== 'alive' || side.nSeg <= 3) return;
-        if (side._biteCd && now - side._biteCd < 1200) return;   // иммунитет после укуса
+        if (side.state !== 'alive' || side.nSeg <= 2) return;
+        if (side._biteCd && now - side._biteCd < 160) return;    // темп поедания: ~6 сегментов/сек
         const skip = Math.ceil(2.2 / ARENA_SEG);                 // ближние к голове сегменты не считаем
         for (let i = skip; i < pts.length; i++) {
           if (arenaDist(pts[0].x, pts[0].y, pts[i].x, pts[i].y) < ARENA_HITR * 0.85) {
+            const fresh = !side._biteCd || now - side._biteCd > 600;   // начало новой серии укусов
             side._biteCd = now;
-            side.nSeg = 2;                                       // съел себя до огрызка
-            const g = side._inner;
-            if (g) {
-              g.style.transition = 'opacity 0.12s ease';
-              g.style.opacity = '0.4';
-              setTimeout(() => { if (g) { g.style.transition = 'opacity 0.25s ease'; g.style.opacity = '1'; } }, 130);
-            }
-            try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
+            side.nSeg = Math.max(2, side.nSeg - 1);              // ест свой хвост постепенно
+            if (fresh) { try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {} }
             break;
           }
         }

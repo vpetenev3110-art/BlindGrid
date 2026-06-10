@@ -341,7 +341,7 @@
   }
   #play-btn {
     display: flex; width: 100%; align-items: center; justify-content: center; gap: 11px;
-    font-size: 14.5px; padding: 20px; border-radius: 10px;
+    font-size: 14.5px; padding: 20px; border-radius: 22px;
     color: #10b981; background: rgba(16,185,129,0.15); border: none;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
     backdrop-filter: blur(13px); -webkit-backdrop-filter: blur(13px);
