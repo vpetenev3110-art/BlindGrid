@@ -1399,20 +1399,40 @@ function setAvatar(el) {
 
 // окна профиля (экраны выбора соперника и режима)
 let pfIndex = 0;
-function pfRenderCard(card, idx) {
-  const cur = rankInfo(getXP());
+const PF_GAP = 12;
+function pfWindows() { return Array.prototype.slice.call(document.querySelectorAll('.pf-window')); }
+function pfSlideEl(idx, cur) {
   const r = RANKS[idx];
   const ri = mkRI(idx, idx === cur.index ? cur.into : 0, r.need);
-  const nameEl = card.querySelector('.pf-name'); if (nameEl) nameEl.textContent = pfDisplayName();
-  setAvatar(card.querySelector('.pf-avatar'));
-  styleFrame(card.querySelector('.pf-frame'), ri);
-  const rk = card.querySelector('.pf-rank'); if (rk) { rk.textContent = ri.name; rk.style.color = ri.c1; }
-  const fill = card.querySelector('.pf-xp-fill');
-  if (fill) {
-    const frac = (idx === cur.index) ? cur.frac : 1;   // соседние — полная полоса (виден цвет)
-    fill.style.width = (frac * 100) + '%';
-    fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')';
+  const el = document.createElement('div');
+  el.className = 'pf-slide';
+  el.innerHTML = '<div class="pf-info"><span class="pf-name"></span><span class="pf-rank"></span>'
+    + '<div class="pf-xp"><span class="pf-xp-fill"></span></div></div>'
+    + '<div class="pf-frame"><div class="pf-avatar"></div></div>';
+  el.querySelector('.pf-name').textContent = pfDisplayName();
+  setAvatar(el.querySelector('.pf-avatar'));
+  styleFrame(el.querySelector('.pf-frame'), ri);
+  const rk = el.querySelector('.pf-rank'); rk.textContent = ri.name; rk.style.color = ri.c1;
+  const fill = el.querySelector('.pf-xp-fill');
+  const frac = (idx === cur.index) ? cur.frac : 1;   // чужие ранги — полная полоса (виден их цвет)
+  fill.style.width = (frac * 100) + '%';
+  fill.style.background = 'linear-gradient(90deg,' + ri.c1 + ',' + ri.c2 + ')';
+  return el;
+}
+function pfLayout(win, animate) {
+  const vp = win._vp, track = win._track;
+  if (!vp || !track || !track.children.length) return;
+  const Vw = vp.clientWidth; if (!Vw) return;   // окно скрыто — посчитаем при показе
+  const Cw = Math.round(Vw * 0.86);
+  track._cw = Cw; track._step = Cw + PF_GAP;
+  for (let i = 0; i < track.children.length; i++) {
+    track.children[i].style.width = Cw + 'px';
+    track.children[i].classList.toggle('pf-active', i === pfIndex);
   }
+  const tx = -(pfIndex * track._step) + (Vw - Cw) / 2;
+  track.style.transition = animate ? 'transform 0.32s cubic-bezier(.22,.9,.32,1)' : 'none';
+  track.style.transform = 'translateX(' + tx + 'px)';
+  track._tx = tx;
 }
 function pfUpdateScrollbar() {
   const total = RANKS.length;
@@ -1423,48 +1443,70 @@ function pfUpdateScrollbar() {
     th.style.left = (pos * (100 - wPct)) + '%';
   });
 }
-function pfGoto(idx) {
+function pfGoto(idx, animate) {
   const old = pfIndex;
   pfIndex = Math.max(0, Math.min(RANKS.length - 1, idx));
-  if (pfIndex === old) return;
-  const dir = pfIndex > old ? 1 : -1;
-  const curIdx = rankInfo(getXP()).index;
-  const targetOp = pfIndex > curIdx ? '0.62' : '1';   // будущие ранги чуть затемнены
-  document.querySelectorAll('.pf-card').forEach(card => {
-    card.style.transition = 'none';
-    card.style.transform = 'translateX(' + (dir * 18) + 'px)';
-    card.style.opacity = '0.3';
-    pfRenderCard(card, pfIndex);
-    requestAnimationFrame(() => {
-      card.style.transition = 'transform 0.22s cubic-bezier(.25,.9,.3,1), opacity 0.22s ease';
-      card.style.transform = 'translateX(0)';
-      card.style.opacity = targetOp;
-    });
-  });
+  pfWindows().forEach(w => pfLayout(w, animate !== false));
   pfUpdateScrollbar();
-  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+  if (pfIndex !== old) { try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); } catch (e) {} }
 }
-function pfBindSwipe() {
-  document.querySelectorAll('.pf-window').forEach(win => {
-    if (win._pfSwipe) return; win._pfSwipe = true;
-    let sx = 0, sy = 0, active = false;
-    win.addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; active = true; }, { passive: true });
-    win.addEventListener('touchend', e => {
-      if (!active) return; active = false;
-      const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy;
-      if (Math.abs(dx) > 34 && Math.abs(dx) > Math.abs(dy)) pfGoto(pfIndex + (dx < 0 ? 1 : -1));
-    }, { passive: true });
-  });
+function pfBindDrag(win) {
+  if (win._pfDrag) return; win._pfDrag = true;
+  let sx = 0, sy = 0, startTx = 0, dragging = false, horiz = null;
+  const begin = (x, y) => {
+    const track = win._track; if (!track) return;
+    sx = x; sy = y; startTx = track._tx || 0; dragging = true; horiz = null;
+  };
+  const move = (x, y) => {
+    if (!dragging) return;
+    const track = win._track, vp = win._vp;
+    const dx = x - sx, dy = y - sy;
+    if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy);
+    if (!horiz) return;
+    let nx = startTx + dx;
+    const maxTx = (vp.clientWidth - track._cw) / 2;                       // граница слева (первый ранг)
+    const minTx = -((RANKS.length - 1) * track._step) + maxTx;            // граница справа (последний)
+    if (nx > maxTx) nx = maxTx + (nx - maxTx) * 0.3;                      // резинка на краях
+    if (nx < minTx) nx = minTx + (nx - minTx) * 0.3;
+    track.style.transition = 'none';
+    track.style.transform = 'translateX(' + nx + 'px)';
+  };
+  const finish = x => {
+    if (!dragging) return; dragging = false;
+    if (!horiz) return;
+    const track = win._track;
+    const dx = x - sx, TH = (track && track._cw ? track._cw : 220) * 0.18;
+    if (dx < -TH) pfGoto(pfIndex + 1);
+    else if (dx > TH) pfGoto(pfIndex - 1);
+    else pfGoto(pfIndex);   // не дотянул — плавно вернуть
+  };
+  win.addEventListener('touchstart', e => { const t = e.touches[0]; begin(t.clientX, t.clientY); }, { passive: true });
+  win.addEventListener('touchmove', e => { const t = e.touches[0]; move(t.clientX, t.clientY); }, { passive: true });
+  win.addEventListener('touchend', e => { const t = e.changedTouches[0]; finish(t.clientX); }, { passive: true });
+  win.addEventListener('mousedown', e => begin(e.clientX, e.clientY));
+  win.addEventListener('mousemove', e => { if (e.buttons) move(e.clientX, e.clientY); });
+  win.addEventListener('mouseup', e => finish(e.clientX));
+  win.addEventListener('mouseleave', e => { if (dragging) finish(e.clientX); });
 }
 function renderProfile() {
-  pfIndex = rankInfo(getXP()).index;
-  document.querySelectorAll('.pf-card').forEach(card => {
-    card.style.transition = 'none'; card.style.transform = 'translateX(0)'; card.style.opacity = '1';
-    pfRenderCard(card, pfIndex);
+  const cur = rankInfo(getXP());
+  pfIndex = cur.index;
+  pfWindows().forEach(win => {
+    win._vp = win.querySelector('.pf-viewport');
+    win._track = win.querySelector('.pf-track');
+    if (!win._vp || !win._track) return;
+    win._track.innerHTML = '';
+    for (let i = 0; i < RANKS.length; i++) {
+      const sl = pfSlideEl(i, cur);
+      if (i === cur.index) sl.classList.add('pf-self');
+      win._track.appendChild(sl);
+    }
+    pfBindDrag(win);
+    pfLayout(win, false);
   });
-  pfBindSwipe();
   pfUpdateScrollbar();
 }
+window.addEventListener('resize', () => pfWindows().forEach(w => pfLayout(w, false)));
 
 // ---- оверлей конца раунда ----
 function applyOverlayRank(ri) {

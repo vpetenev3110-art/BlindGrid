@@ -591,7 +591,7 @@
   @keyframes menu-fade { 0% { opacity: 0; } 100% { opacity: 1; } }
 
   /* ===== ВЫБОР РЕЖИМА / СОПЕРНИКА / КАСТОМИЗАЦИЯ ===== */
-  #mode-select, #opp-select, #custom-select, #gametype-select, #snake-screen {
+  #mode-select, #opp-select, #custom-select, #gametype-select, #snake-screen, #arena-screen {
     position: absolute; inset: 0; z-index: 56;
     display: flex; flex-direction: column;
     align-items: center; justify-content: flex-start;
@@ -601,12 +601,13 @@
     animation: bg-shift 26s ease infinite;
     transition: opacity 0.4s ease;
   }
-  #mode-select.hidden, #opp-select.hidden, #custom-select.hidden, #gametype-select.hidden, #snake-screen.hidden { opacity: 0; pointer-events: none; }
-  #mode-particles, #opp-particles, #custom-particles, #gametype-particles, #snake-particles { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  #mode-select.hidden, #opp-select.hidden, #custom-select.hidden, #gametype-select.hidden, #snake-screen.hidden, #arena-screen.hidden { opacity: 0; pointer-events: none; }
+  #mode-particles, #opp-particles, #custom-particles, #gametype-particles, #snake-particles, #arena-particles { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
   #mode-select > *:not(#mode-particles):not(.flat-back):not(.pf-window),
   #opp-select > *:not(#opp-particles):not(.flat-back):not(.pf-window),
-  #gametype-select > *:not(#gametype-particles),
+  #gametype-select > *:not(#gametype-particles):not(.pf-window),
   #snake-screen > *:not(#snake-particles),
+  #arena-screen > *:not(#arena-particles),
   #custom-select > *:not(#custom-particles):not(.flat-back) { position: relative; z-index: 1; }
   /* верхняя плашка с лого как в игре */
   .mode-topbar {
@@ -948,7 +949,15 @@
   #gametype-select:not(.hidden) .pf-window,
   #mode-select:not(.hidden) .pf-window { opacity: 1; }
   @keyframes pf-drop { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: translateY(0); } }
-  .pf-card { display: flex; align-items: center; gap: 13px; will-change: transform; }
+  .pf-viewport { overflow: hidden; width: 100%; }
+  .pf-track { display: flex; gap: 12px; will-change: transform; }
+  .pf-slide {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 13px;
+    opacity: 0.42; transform: scale(0.94);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .pf-slide.pf-active { opacity: 0.78; transform: scale(1); }   /* в центре, но не твой ранг — приглушён */
+  .pf-slide.pf-active.pf-self { opacity: 1; }                   /* твой текущий ранг — яркий */
   .pf-scrollbar {
     height: 4px; margin: 9px 0 0; border-radius: 999px;
     background: rgba(120,110,160,0.16); position: relative;
