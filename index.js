@@ -313,6 +313,7 @@ function renderShipLayer(boardId, pieces, animateId, animType, instant) {
 
 function startPlacement() {
   arsBuy = null; arsDefense = null; arsShopPhase = false;
+  { const dp = document.getElementById('dock-pieces'); if (dp) dp._snap = true; }   // первый рендер дока без анимации
   state = null;   // старый бой мёртв: его таймеры (aiTurn и пр.) дальше не действуют
   document.querySelectorAll('.battle-cd, .board-cd, .skip-dim').forEach(e => e.remove());
   const dk = document.getElementById('dock'); if (dk) dk.classList.remove('shop-mode');
@@ -410,15 +411,21 @@ function renderDock() {
     el.addEventListener('pointerdown', (e) => beginDrag(e, piece, 'dock', el));
     dock.appendChild(el);
   });
-  // плавная анимация высоты дока
+  // плавная анимация высоты дока (но при входе на экран — мгновенно, без «расширения»)
   dock.style.transition = 'none';
   dock.style.height = 'auto';
   const newH = dock.getBoundingClientRect().height;
-  dock.style.height = oldH + 'px';
-  requestAnimationFrame(() => {
-    dock.style.transition = '';
+  if (dock._snap) {
+    dock._snap = false;
     dock.style.height = newH + 'px';
-  });
+    requestAnimationFrame(() => { dock.style.transition = ''; });
+  } else {
+    dock.style.height = oldH + 'px';
+    requestAnimationFrame(() => {
+      dock.style.transition = '';
+      dock.style.height = newH + 'px';
+    });
+  }
 
   const allPlaced = placement.pieces.every(p => p.placed);
   const anyBad = placement.pieces.some(p => p.placed && p.bad);
@@ -3772,16 +3779,8 @@ function arenaDeath(side) {
   if (side.lives <= 0) {
     snakeWaveColor(side, 'var(--miss)');
     arenaSetColor(side, 'var(--miss)', 'var(--miss)');
-    side.gMarks.innerHTML = '';
-    const seen = new Set();
-    arenaWrappedPts(side).forEach((p, idx) => {
-      const r = Math.floor(p.y), c = Math.floor(p.x), k = r + '_' + c;
-      if (seen.has(k)) return; seen.add(k);
-      const m = svgEl('rect', { class: 'snk-mark', x: c + 0.33, y: r + 0.33, width: 0.34, height: 0.34, rx: 0.17 });
-      m.style.animationDelay = (0.3 + idx * 0.06).toFixed(2) + 's';
-      side.gMarks.appendChild(m);
-    });
-    setTimeout(() => { if (arenaState !== st) return; side.state = 'dead'; arenaCheckOver(); }, 800 + side.nSeg * 80);
+    side.gMarks.innerHTML = '';   // без точек — просто серая змея
+    setTimeout(() => { if (arenaState !== st) return; side.state = 'dead'; arenaCheckOver(); }, 900);
     return;
   }
   const col = SNAKE_DMG[side.lives];
@@ -3795,8 +3794,10 @@ function arenaDeath(side) {
     arenaInitPos(side, sp.x, sp.y, sp.ang);
     side.hitEyes = false;
     side.deaths = (side.deaths || 0) + 1;
-    const f = Math.min(0.45, side.deaths * 0.16);       // с каждой смертью цвет темнее
-    arenaSetColor(side, hexDarken(side.base.sc, f), hexDarken(side.base.sch, f));
+    arenaSetColor(side, side.base.sc, side.base.sch);   // тело — базового цвета
+    const edges = [null, '#6c80f5', '#ff4757'];          // контур меняет цвет с каждой смертью
+    const ec = edges[Math.min(side.deaths, edges.length - 1)];
+    if (ec) side.gBody.style.setProperty('--sc-edge', ec);
     side.state = 'alive';
     arenaPaintFree(side);
     snakeWaveColor(side, '');   // сброс инлайновых цветов — тело берёт новый (потемневший) базовый
