@@ -686,29 +686,31 @@ function spinTurnArrow(dur, onPick) {
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const startA = turnAngle || 0;
   const totalSpin = 720 + Math.random() * 540;   // 2–3.5 оборота — итог случаен
+  arrow.classList.add('spin');                   // во время вращения — нейтрально-серая
+  arrow.classList.remove('down', 'up');
   const tick = () => {
-    if (!state) return;
+    if (!state) { arrow.classList.remove('spin'); return; }
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     const t = Math.min(1, (now - t0) / dur);
     const eased = 1 - Math.pow(1 - t, 3);        // инерция: быстро → плавное затухание
     const a = startA + totalSpin * eased;
     arrow.style.transition = 'none';
     arrow.style.transform = 'rotate(' + a + 'deg)';
-    const side = Math.round(a / 180) % 2 === 0 ? 'player' : 'enemy';
-    arrow.classList.toggle('down', side === 'player');
-    arrow.classList.toggle('up', side === 'enemy');
     if (t < 1) { requestAnimationFrame(tick); return; }
-    // остановилась — мягкий доезд к ближайшему положению
+    // остановилась — долгий мягкий доезд к ближайшему положению
     const fin = Math.round(a / 180) * 180;
     const first = (((fin / 180) % 2) + 2) % 2 === 0 ? 'player' : 'enemy';
     turnAngle = fin; turnSide = first;
     turnLastFlip = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    arrow.classList.toggle('down', first === 'player');
-    arrow.classList.toggle('up', first === 'enemy');
     if (onPick) onPick(first);
     requestAnimationFrame(() => {
-      arrow.style.transition = 'transform 0.95s cubic-bezier(.16,.85,.24,1), background 0.6s ease';
+      arrow.style.transition = 'transform 1.5s cubic-bezier(.14,.7,.16,1), background 0.6s ease';
       arrow.style.transform = 'rotate(' + fin + 'deg)';
+      setTimeout(() => {                          // цвет стороны проявляется, когда стрелка села
+        arrow.classList.remove('spin');
+        arrow.classList.toggle('down', first === 'player');
+        arrow.classList.toggle('up', first === 'enemy');
+      }, 1150);
     });
   };
   requestAnimationFrame(tick);

@@ -1487,3 +1487,12 @@
 
   /* декор рамок рисуется внутри — слайд дополнительно страхует от выхода за границы */
   .pf-slide { overflow: hidden; }
+
+  /* поля и слои боя живут на собственных постоянных композитных слоях:
+     появление/удаление взрывов, прицелов и снарядов не перерисовывает клетки (iOS layer-flash) */
+  #battle-my-board, #enemy-board { transform: translateZ(0); }
+  #battle-my-board .fx-layer, #enemy-board .fx-layer { transform: translateZ(0); will-change: transform; }
+  #battle-my-board .ship-layer, #enemy-board .ship-layer { transform: translateZ(0); }
+  /* стрелка-рулетка: серая, пока крутится */
+  #turn-arrow.spin { background: rgba(148,150,170,0.16) !important; }
+  #turn-arrow.spin .tri { fill: #9aa0b5 !important; }
