@@ -2223,6 +2223,22 @@ document.getElementById('play-btn').addEventListener('click', () => {
 });
 
 setTimeout(() => { try { syncMenuVersion(!document.getElementById('menu').classList.contains('hidden')); } catch (e) {} }, 0);
+// крестик в шапке игры: с расстановки (и из арсенала) — выход на экран выбора режима
+setTimeout(() => {
+  const x = document.querySelector('#title .logo-cross');
+  if (!x) return;
+  x.style.cursor = 'pointer';
+  x.addEventListener('click', () => {
+    const onPlacement = document.getElementById('placement-screen').classList.contains('active');
+    if (!onPlacement) return;   // в бою крестик не работает — чтобы не слить партию случайно
+    if (arsShopPhase) arsShopExit(true);   // из арсенала — с полным возвратом XP
+    state = null;
+    setGameUIHidden(true);
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    renderProfile();
+    document.getElementById('gametype-select').classList.remove('hidden');
+  });
+}, 0);
 function syncMenuVersion(open) {
   const gv = document.getElementById('app-version');
   const mv = document.getElementById('menu-version');
@@ -3380,6 +3396,7 @@ function snakeTick() {
 }
 
 function snakeEnd(win, fruits, comboXP) {
+  if (!snakeState) return;   // игру уже покинули
   snakeComboReset();
   { const el = document.getElementById('snake-hunger'); if (el) el.classList.remove('show', 'urgent'); }
   document.getElementById('snake-screen').classList.add('hidden');
@@ -3815,6 +3832,7 @@ function arenaCheckOver() {
   }
 }
 function arenaEnd(win, fruits, comboXP) {
+  if (!arenaState) return;   // игру уже покинули
   document.getElementById('arena-screen').classList.add('hidden');
   setTimeout(() => { showXpResult(win, fruits, 'snake', Math.round(comboXP || 0)); launchConfetti(win); }, 90);
 }
@@ -3885,12 +3903,14 @@ function startArena() {
 })();
 document.getElementById('arena-back-x').addEventListener('click', () => {
   arenaStop();
+  arenaState = null;   // гарды таймеров (arenaState !== st) отсекут отложенные итоги
   document.getElementById('arena-screen').classList.add('hidden');
   document.getElementById('gametype-select').classList.remove('hidden');
 });
 
 document.getElementById('snake-back-x').addEventListener('click', () => {
   snakeStop();
+  snakeState = null;   // подвисшие таймеры смерти не покажут оверлей поверх другой игры
   document.getElementById('snake-screen').classList.add('hidden');
   document.getElementById('gametype-select').classList.remove('hidden');
 });
