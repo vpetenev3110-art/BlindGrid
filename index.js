@@ -2978,15 +2978,15 @@ function snakeEyesCanonical(hitEyes) {
 // Отрисовка тела с кэшем: DOM пересоздаётся только при смене длины/глаз,
 // в остальных кадрах обновляются лишь атрибуты (никакого пересоздания 60 раз/сек).
 // Голова/глаза в канонических координатах + плавный доворот угла — повороты мягкие.
-function snakeDrawBody(group, pts, d, hitEyes) {
+function snakeDrawBody(group, pts, d, hitEyes, solid) {
   const n = pts.length, h = pts[0];
   const W = 0.7, EW = 0.9;
   const target = (d && typeof d.ang === 'number') ? d.ang : snakeDirAngle(d);   // арена даёт угол напрямую
   let c = group._bc;
-  if (!c || c.n !== n || c.hitEyes !== hitEyes) {
+  if (!c || c.n !== n || c.hitEyes !== hitEyes || c.solid !== solid) {
     group.innerHTML = '';
-    c = group._bc = { n, hitEyes, links: [], ang: target };
-    if (n >= 3) { c.poly = svgEl('polyline', { class: 'snk-edge', 'stroke-width': EW, style: 'fill:none', points: '' }); group.appendChild(c.poly); }
+    c = group._bc = { n, hitEyes, solid, links: [], ang: target };
+    if (n >= 3) { c.poly = svgEl('polyline', { class: 'snk-edge', 'stroke-width': EW, style: 'fill:none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', points: '' }); group.appendChild(c.poly); }
     c.headEdgeG = svgEl('g', {});
     c.headEdgeG.appendChild(svgEl('path', { class: 'snk-edge', 'stroke-width': 0, d: snakeHeadPath(0, 0, 0.98, { r: 0, c: 1 }, 0.49, 0.24) }));
     group.appendChild(c.headEdgeG);
@@ -2995,13 +2995,21 @@ function snakeDrawBody(group, pts, d, hitEyes) {
     c.headFill = svgEl('path', { class: 'snk-head', d: snakeHeadPath(0, 0, 0.84, { r: 0, c: 1 }, 0.42, 0.18) });
     c.headFillG.appendChild(c.headFill);
     group.appendChild(c.headFillG);
-    for (let i = 0; i < n - 2; i++) { const lk = svgEl('line', { class: 'snk-link', 'stroke-width': W }); c.links.push(lk); group.appendChild(lk); }
+    if (solid) {
+      // цельное тело: одна непрерывная линия — без «ячеек» на стыках
+      c.fillPoly = svgEl('polyline', { class: 'snk-link', 'stroke-width': W, style: 'fill:none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', points: '' });
+      group.appendChild(c.fillPoly);
+    } else {
+      for (let i = 0; i < n - 2; i++) { const lk = svgEl('line', { class: 'snk-link', 'stroke-width': W }); c.links.push(lk); group.appendChild(lk); }
+    }
     if (n >= 2) { c.tailFill = svgEl('polygon', { class: 'snk-tail', 'stroke-width': 0.30, points: '' }); group.appendChild(c.tailFill); }
     c.eyesG = snakeEyesCanonical(hitEyes);
     group.appendChild(c.eyesG);
   }
   if (c.poly) c.poly.setAttribute('points', pts.slice(0, n - 1).map(p => p.x.toFixed(3) + ',' + p.y.toFixed(3)).join(' '));
-  for (let i = 0; i < c.links.length; i++) {
+  if (c.fillPoly) {
+    c.fillPoly.setAttribute('points', pts.slice(0, n - 1).map(p => p.x.toFixed(3) + ',' + p.y.toFixed(3)).join(' '));
+  } else for (let i = 0; i < c.links.length; i++) {
     const a = pts[i], b = pts[i + 1], lk = c.links[i];
     lk.setAttribute('x1', a.x.toFixed(3)); lk.setAttribute('y1', a.y.toFixed(3));
     lk.setAttribute('x2', b.x.toFixed(3)); lk.setAttribute('y2', b.y.toFixed(3));
@@ -3025,7 +3033,8 @@ function snakeDrawBody(group, pts, d, hitEyes) {
   c.headFillG.setAttribute('transform', tr);
   c.eyesG.setAttribute('transform', tr);
   const waveEls = [c.headFill];
-  c.links.forEach(l => waveEls.push(l));
+  if (c.fillPoly) waveEls.push(c.fillPoly);
+  else c.links.forEach(l => waveEls.push(l));
   if (c.tailFill) waveEls.push(c.tailFill);
   return waveEls;
 }
@@ -3399,7 +3408,7 @@ window.addEventListener('keydown', e => {
 // ===================== РЕЖИМ «АРЕНА» — свободное движение, как slither.io =====================
 // Непрерывные координаты на тороидальном поле 13×20: змейка плывёт под любым углом,
 // поворачивает к цели с ограниченной скоростью, тело тянется по следу головы.
-const ARENA_COLS = 13, ARENA_FRUITS = 3;
+const ARENA_COLS = 13, ARENA_FRUITS = 2;   // вдвое меньше фруктов
 let ARENA_ROWS = 20;            // подбирается под высоту экрана при полной ширине поля
 const ARENA_SPEED = 5.0;        // клеток в секунду
 const ARENA_TURN = 5.2;         // рад/с — мягче дуги, тела без изломов
@@ -3512,7 +3521,7 @@ function arenaPaintFree(side) {
   const sx = arenaMod(side.x, ARENA_COLS) - side.x;
   const sy = arenaMod(side.y, ARENA_ROWS) - side.y;
   const sp = pts.map(p => ({ x: p.x + sx, y: p.y + sy }));
-  side._waveEls = snakeDrawBody(side._inner, sp, { ang: side.ang * 180 / Math.PI }, side.hitEyes);
+  side._waveEls = snakeDrawBody(side._inner, sp, { ang: side.ang * 180 / Math.PI }, side.hitEyes, true);   // цельное тело
   side._pts = sp;   // для столкновений/меток (в координатах поля со сдвигом)
 }
 function arenaWrappedPts(side) {
@@ -3537,8 +3546,8 @@ function arenaEnsureFruits() {
 }
 function arenaDrawFruit(burst) {
   const g = arenaState.gFruit; g.innerHTML = '';
-  if (burst) g.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.15 }));
-  arenaState.fruits.forEach(f => g.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: f.c + 0.5, cy: f.r + 0.5, r: 0.15 })));
+  if (burst) g.appendChild(svgEl('circle', { class: 'snk-fruit-eat', cx: burst.c + 0.5, cy: burst.r + 0.5, r: 0.3 }));
+  arenaState.fruits.forEach(f => g.appendChild(svgEl('circle', { class: 'snk-fruit-dot appear', cx: f.c + 0.5, cy: f.r + 0.5, r: 0.3 })));
 }
 function arenaNearestFruit(side) {
   let best = null, bd = 1e9;
