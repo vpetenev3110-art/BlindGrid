@@ -97,7 +97,7 @@ function playMenuLogo() {
     if (cube) cube.style.transform = 'translateX(70px) rotate(40deg) scale(0.5)';
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        if (cube) cube.style.transform = 'translateX(0) rotate(0deg) scale(1)';
+        if (cube) cube.style.transform = 'translateX(0) rotate(8deg) scale(1)';
         if (cross) setTimeout(function () { cross.style.transform = 'rotate(0deg) scale(1)'; }, 80);
         if (text) setTimeout(function () { text.style.transform = 'translateX(0)'; }, 120);
       });
@@ -1832,7 +1832,7 @@ function spawnBlast(boardId, r, c, mine) {
 }
 function spawnMineBlast(boardId, r, c) {
   spawnBlast(boardId, r, c, true);
-  jsShake(document.getElementById(boardId));
+  jsShake(fxLayer(boardId));   // не сам board — иначе фигуры мигают
   const p = arsCellCenter(boardId, r, c);
   if (p) bombShatter(p.x, p.y, 'rgba(255,71,87,0.95)');
 }
@@ -1976,7 +1976,7 @@ function arsFlashShield(boardId, shield) {
     }, 580);
     setTimeout(() => clip.remove(), 1350);
   }
-  jsShake(boardEl);
+  jsShake(fxLayer(boardId));   // трясём fx-слой: transform на самом board перезапускает переходы фигур в Safari
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
   if (boardId === 'battle-my-board') arsRenderMyDefense();
 }
@@ -2109,7 +2109,7 @@ document.getElementById('overlay-back').addEventListener('click', () => {
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   renderProfile();
-  document.getElementById('opp-select').classList.remove('hidden');
+  document.getElementById('gametype-select').classList.remove('hidden');
 });
 document.getElementById('play-btn').addEventListener('click', () => {
   if (!placement) return;
@@ -2127,7 +2127,14 @@ document.getElementById('play-btn').addEventListener('click', () => {
   startBattle();
 });
 
+function syncMenuVersion(open) {
+  const gv = document.getElementById('app-version');
+  const mv = document.getElementById('menu-version');
+  if (mv && gv) mv.textContent = gv.textContent;
+  if (gv) gv.style.display = open ? 'none' : '';
+}
 function showMenu() {
+  syncMenuVersion(true);
   // прячем игровой UI, чтобы под меню ничего не мелькало
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   setGameUIHidden(true);
@@ -2138,6 +2145,7 @@ function showMenu() {
 let gameType = 'sea';   // 'sea' | 'snake'
 let currentGame = 'sea';
 document.getElementById('menu-play').addEventListener('click', () => {
+  syncMenuVersion(false);
   setGameUIHidden(true);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('menu').classList.add('hidden');
@@ -2147,18 +2155,6 @@ document.getElementById('menu-play').addEventListener('click', () => {
 document.getElementById('gametype-back-x').addEventListener('click', () => {
   document.getElementById('gametype-select').classList.add('hidden');
   showMenu();
-});
-document.getElementById('gt-sea').addEventListener('click', () => {
-  gameType = 'sea';
-  document.getElementById('gametype-select').classList.add('hidden');
-  renderProfile();
-  document.getElementById('opp-select').classList.remove('hidden');
-});
-document.getElementById('gt-snake').addEventListener('click', () => {
-  gameType = 'snake';
-  document.getElementById('gametype-select').classList.add('hidden');
-  renderProfile();
-  document.getElementById('opp-select').classList.remove('hidden');
 });
 document.getElementById('menu-friends').addEventListener('click', () => {
   // друзья — появится позже
@@ -2217,12 +2213,13 @@ function startGameWithMode(mode) {
   lastMode = mode;
   applyMode(mode);
   document.getElementById('mode-select').classList.add('hidden');
+  document.getElementById('gametype-select').classList.add('hidden');
   startPlacement();
 }
 document.getElementById('mode-fast').addEventListener('click', () => startGameWithMode('fast'));
 document.getElementById('mode-classic').addEventListener('click', () => startGameWithMode('classic'));
-document.getElementById('mode-snake-classic').addEventListener('click', () => { document.getElementById('mode-select').classList.add('hidden'); startSnake(); });
-document.getElementById('mode-snake-arena').addEventListener('click', () => { document.getElementById('mode-select').classList.add('hidden'); startArena(); });
+document.getElementById('mode-snake-classic').addEventListener('click', () => { document.getElementById('mode-select').classList.add('hidden'); document.getElementById('gametype-select').classList.add('hidden'); startSnake(); });
+document.getElementById('mode-snake-arena').addEventListener('click', () => { document.getElementById('mode-select').classList.add('hidden'); document.getElementById('gametype-select').classList.add('hidden'); startArena(); });
 document.getElementById('mode-back-x').addEventListener('click', () => {
   document.getElementById('mode-select').classList.add('hidden');
   document.getElementById('opp-select').classList.remove('hidden');
@@ -2897,7 +2894,7 @@ function snakeDirAngle(d) { return d.c === 1 ? 0 : (d.r === 1 ? 90 : (d.c === -1
 function snakeEyesCanonical(hitEyes) {
   // глаза в «канонических» координатах (голова смотрит вправо, центр в 0,0) — позицию/поворот даёт transform группы
   const g = svgEl('g', {});
-  const eyes = [{ x: 0.16, y: -0.17, tilt: 18 }, { x: 0.16, y: 0.17, tilt: -18 }];
+  const eyes = [{ x: 0.16, y: -0.17, tilt: -18 }, { x: 0.16, y: 0.17, tilt: 18 }];   // наклон к голове: /\
   if (hitEyes) {
     eyes.forEach(e => {
       const s = 0.1, xg = svgEl('g', { class: 'snk-eye-x' });
@@ -2926,7 +2923,7 @@ function snakeDrawBody(group, pts, d, hitEyes) {
     c.headEdgeG = svgEl('g', {});
     c.headEdgeG.appendChild(svgEl('path', { class: 'snk-edge', 'stroke-width': 0, d: snakeHeadPath(0, 0, 0.98, { r: 0, c: 1 }, 0.49, 0.24) }));
     group.appendChild(c.headEdgeG);
-    if (n >= 2) { c.tailEdge = svgEl('polygon', { class: 'snk-edge', 'stroke-width': 0.30, 'stroke-linejoin': 'round', points: '' }); group.appendChild(c.tailEdge); }
+    if (n >= 2) { c.tailEdge = svgEl('polygon', { class: 'snk-edge', 'stroke-width': 0.32, 'stroke-linejoin': 'round', points: '' }); group.appendChild(c.tailEdge); }
     c.headFillG = svgEl('g', {});
     c.headFill = svgEl('path', { class: 'snk-head', d: snakeHeadPath(0, 0, 0.84, { r: 0, c: 1 }, 0.42, 0.18) });
     c.headFillG.appendChild(c.headFill);
@@ -2950,7 +2947,7 @@ function snakeDrawBody(group, pts, d, hitEyes) {
       const b1 = [nb.x + px * hw, nb.y + py * hw], b2 = [nb.x - px * hw, nb.y - py * hw], tp = [tip.x + dx * ext, tip.y + dy * ext];
       return [b1, b2, tp].map(v => v[0].toFixed(3) + ',' + v[1].toFixed(3)).join(' ');
     };
-    c.tailEdge.setAttribute('points', mkTail(0.26, 0.00));
+    c.tailEdge.setAttribute('points', mkTail(0.27, 0.02));
     c.tailFill.setAttribute('points', mkTail(0.18, -0.06));
   }
   // плавный доворот головы к целевому направлению (по короткой дуге)
@@ -3032,6 +3029,29 @@ function aiPickDir(side) {
   const cellOf = d => ({ r: ((head.r + d.r) % SNAKE_N + SNAKE_N) % SNAKE_N, c: ((head.c + d.c) % SNAKE_N + SNAKE_N) % SNAKE_N });
   const safe = opts.filter(d => { const n = cellOf(d); return !occ.has(n.r + '_' + n.c); });
   const pool = safe.length ? safe : opts;
+  // свободный коридор: сколько клеток подряд впереди без собственного тела
+  const corridor = d => {
+    let r = head.r, c = head.c, n = 0;
+    for (let i = 0; i < SNAKE_N; i++) {
+      r = ((r + d.r) % SNAKE_N + SNAKE_N) % SNAKE_N;
+      c = ((c + d.c) % SNAKE_N + SNAKE_N) % SNAKE_N;
+      if (occ.has(r + '_' + c)) break;
+      n++;
+    }
+    return n;
+  };
+  // большая змея в тесноте — не лезть к фрукту в узкий карман, а переждать голодный таймер на просторе
+  if (side.cells.length >= 12 && side.fruit) {
+    const toFruit = pool.length ? pool.slice().sort((a, b) => {
+      const na = cellOf(a), nb = cellOf(b);
+      return (Math.abs(snakeMinwrap(na.r - side.fruit.r, SNAKE_N)) + Math.abs(snakeMinwrap(na.c - side.fruit.c, SNAKE_N)))
+           - (Math.abs(snakeMinwrap(nb.r - side.fruit.r, SNAKE_N)) + Math.abs(snakeMinwrap(nb.c - side.fruit.c, SNAKE_N)));
+    })[0] : null;
+    if (toFruit && corridor(toFruit) < 3) {
+      const roomy = pool.slice().sort((a, b) => corridor(b) - corridor(a));
+      if (roomy.length && corridor(roomy[0]) > corridor(toFruit)) return roomy[0];
+    }
+  }
   if (side.fruit) {
     pool.sort((a, b) => {
       const na = cellOf(a), nb = cellOf(b);
@@ -3677,11 +3697,11 @@ function startArena() {
 document.getElementById('arena-back-x').addEventListener('click', () => {
   arenaStop();
   document.getElementById('arena-screen').classList.add('hidden');
-  document.getElementById('opp-select').classList.remove('hidden');
+  document.getElementById('gametype-select').classList.remove('hidden');
 });
 
 document.getElementById('snake-back-x').addEventListener('click', () => {
   snakeStop();
   document.getElementById('snake-screen').classList.add('hidden');
-  document.getElementById('opp-select').classList.remove('hidden');
+  document.getElementById('gametype-select').classList.remove('hidden');
 });

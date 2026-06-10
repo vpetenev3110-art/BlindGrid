@@ -1397,3 +1397,41 @@
   /* финальные состояния клеток не анимируют фон — ничего не мигает */
   .cell.hit, .cell.miss, .cell.mine-boom { transition: transform 0.08s; }
   /* сегменты распадающейся защиты */
+
+
+  /* версия на главном меню: под лого, по его левому краю */
+  #menu-logo { position: relative; }
+  #menu-version {
+    position: absolute; left: 38px; top: calc(100% + 5px);
+    font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 10px; letter-spacing: 0.5px;
+    color: var(--ink-soft); opacity: 0.55;
+  }
+  /* 3) градиент внутри букв лого — везде (без color-mix, безопасно для iOS) */
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .logo-text {
+      background-image: linear-gradient(168deg, #ffffff 0%, #e4def7 45%, #b0a6e6 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    body.theme-light .logo-text {
+      background-image: linear-gradient(168deg, #4a4368 0%, #6b5fa8 55%, #8d7fd4 100%);
+    }
+  }
+  /* 4) красный кубик в меню — под тем же углом, что и на остальных страницах */
+  #menu-logo .logo-cube { transform: rotate(8deg); }
+  /* 5) хаб выбора режима */
+  #hub { display: flex; flex-direction: column; gap: 10px; width: min(86vw, 340px); }
+  .hub-sec {
+    margin-top: 6px;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--ink-soft); text-align: left; padding-left: 4px;
+  }
+  .hub-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hub-row .menu-btn { width: 100%; justify-content: center; padding: 15px 8px; font-size: 14.5px; }
+
+  /* при градиентной заливке букв заголовок поражения остаётся красным */
+  #overlay.lose #overlay-title .logo-text {
+    background-image: linear-gradient(168deg, #ffb3c0 0%, #ff8095 100%);
+  }
