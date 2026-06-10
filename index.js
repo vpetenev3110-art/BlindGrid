@@ -1262,7 +1262,7 @@ function arsShopEnter() {
     shop._built = true;
   }
   document.getElementById('place-board').classList.add('def-mode');
-  setPlayBtnLabel('В бой');
+  setPlayBtnLabel('Играть');
   arsShopSync();
   arsRenderPlaceOverlays();
 }
@@ -1363,19 +1363,26 @@ function arsBindBandDrag(el, idx) {
   const move = (x, y) => {
     if (!active) return;
     const cell = boardCellFromPoint(x, y); if (!cell) return;
-    const rTop = Math.max(0, Math.min(SIZE - 2, cell.r));
+    let rTop = Math.max(0, Math.min(SIZE - 2, cell.r));
+    if (!arsShieldTopOk(rTop, idx)) {
+      // упираемся в соседний барьер: подползаем к нему по шагу, не накладываясь
+      const cur = (typeof el._cand === 'number') ? el._cand : arsDefense.shields[idx];
+      const dir = rTop > cur ? 1 : -1;
+      let probe = cur;
+      while (probe !== rTop && arsShieldTopOk(probe + dir, idx)) probe += dir;
+      rTop = probe;
+    }
     el._cand = rTop;
     const boardEl = document.getElementById('place-board');
     const rc = arsBandRect(boardEl, rTop); if (!rc) return;
     el.style.top = rc.top + 'px';
-    el.classList.toggle('bad', !arsShieldTopOk(rTop, idx));
   };
   const end = () => {
     if (!active) return; active = false;
     el.classList.remove('drag');
     const rTop = el._cand;
     if (typeof rTop === 'number' && arsShieldTopOk(rTop, idx)) arsDefense.shields[idx] = rTop;
-    arsRenderPlaceOverlays();   // снап на место (валидное или прежнее)
+    arsRenderPlaceOverlays();
   };
   el.addEventListener('touchstart', e => { active = true; el.classList.add('drag'); }, { passive: true });
   el.addEventListener('touchmove', e => { const t = e.touches[0]; move(t.clientX, t.clientY); }, { passive: true });
@@ -1641,7 +1648,7 @@ function arsPlayerUse(r, c) {
     for (let rr = r0; rr <= r0 + 2; rr++) for (let cc = c0; cc <= c0 + 2; cc++)
       if (!state.enemy.board[rr][cc].shot) pool.push({ r: rr, c: cc });
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    animBigVolley('enemy-board', pool.slice(0, 3), shootEnemyCell,
+    animBigStrike('enemy-board', r0 + 1, c0 + 1, pool.slice(0, 3), shootEnemyCell,
       () => { state.skipPlayer = true; setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
       () => { if (!state.over) passTurnToEnemy(); });
     return;
@@ -1704,7 +1711,7 @@ function aiUseBig() {
   for (let rr = z.r0; rr <= z.r0 + 2; rr++) for (let cc = z.c0; cc <= z.c0 + 2; cc++)
     if (!state.player.board[rr][cc].shot) pool.push({ r: rr, c: cc });
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  animBigVolley('battle-my-board', pool.slice(0, 3), aiShootPlayerCell,
+  animBigStrike('battle-my-board', z.r0 + 1, z.c0 + 1, pool.slice(0, 3), aiShootPlayerCell,
     () => { state.skipEnemy = true; setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
     () => { if (!state.over) passTurnToPlayer(); });
 }
@@ -1749,7 +1756,7 @@ function arsAiAutoDefense(counts) {
   };
 }
 
-// --- анимации арсенала: полёт снарядов, взрывы, сбивание щитом (всё JS-транзишенами) ---
+// --- анимации арсенала: дуговой полёт снаряда, взрывы, сбивание щитом (всё JS-транзишенами) ---
 function arsCellCenter(boardId, r, c) {
   const cell = getCellEl(boardId, r, c);
   if (!cell) return null;
@@ -1797,73 +1804,101 @@ function bombShatter(x, y, color) {
     setTimeout(() => s.remove(), 600);
   }
 }
-// полёт снаряда к клетке; fromRight — со стороны правого края (атака игрока), иначе слева (ИИ)
+// дуговой полёт: с края экрана, маленький → большой на пике (ближе к игроку) → уменьшается и садится в клетку.
+// Внешний слой летит по прямой к цели, внутренний даёт подъём и масштаб — вместе получается дуга.
 function flyBomb(boardId, r, c, fromRight, cb) {
   const p = arsCellCenter(boardId, r, c);
   if (!p) { if (cb) cb(null); return; }
-  const b = document.createElement('div');
-  b.className = 'ars-bomb';
-  const sx = fromRight ? window.innerWidth + 60 : -60;
-  const sy = p.y - 70 - Math.random() * 40;
-  b.style.transform = 'translate(' + sx + 'px,' + sy + 'px) rotate(' + (fromRight ? 35 : -35) + 'deg)';
-  if (!fromRight) b.style.setProperty('--flip', '-1');
-  document.body.appendChild(b);
+  const w = document.createElement('div');
+  w.className = 'ars-bomb-w';
+  const inner = document.createElement('div');
+  inner.className = 'ars-bomb';
+  w.appendChild(inner);
+  const sx = fromRight ? window.innerWidth + 50 : -50;
+  w.style.transform = 'translate(' + sx + 'px,' + p.y + 'px)';
+  inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.45)';
+  document.body.appendChild(w);
+  const T = 640;   // полное время полёта
   requestAnimationFrame(() => {
-    b.style.transition = 'transform 0.42s cubic-bezier(.4,.5,.4,1)';
-    b.style.transform = 'translate(' + (p.x - 8) + 'px,' + (p.y - 8) + 'px) rotate(0deg)';
+    // прямой пролёт к клетке
+    w.style.transition = 'transform ' + T + 'ms linear';
+    w.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)';
+    // фаза 1: подъём и рост (бомба «ближе к игроку»)
+    inner.style.transition = 'transform ' + Math.round(T * 0.55) + 'ms cubic-bezier(.25,.6,.5,1)';
+    inner.style.transform = 'translate(-50%,-50%) translateY(-86px) scale(1.55)';
   });
-  setTimeout(() => { if (cb) cb(b); }, 430);
+  setTimeout(() => {
+    // фаза 2: снижение и уменьшение к клетке
+    inner.style.transition = 'transform ' + Math.round(T * 0.45) + 'ms cubic-bezier(.5,0,.8,.4)';
+    inner.style.transform = 'translate(-50%,-50%) translateY(0px) scale(0.8)';
+  }, Math.round(T * 0.55));
+  setTimeout(() => {
+    w.remove();
+    if (cb) cb({ x: p.x, y: p.y });
+  }, T + 20);
 }
-// снаряд сбит щитом: летит к центру зоны, щит вспыхивает, снаряд распадается
+// мигающая полоса защиты: вспыхивает, мигает и растворяется
+function arsFlashShield(boardId, shield) {
+  shield.used = true;
+  const boardEl = document.getElementById(boardId);
+  const rc = arsBandRect(boardEl, shield.rTop);
+  if (rc) {
+    const d = document.createElement('div');
+    d.className = 'ars-band flash';
+    d.style.cssText = 'left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px;opacity:1';
+    boardEl.appendChild(d);
+    // мигание: 1 → 0.2 → 1 → 0.2 → 1 → растворение
+    const seq = [[120, '0.2'], [240, '1'], [360, '0.2'], [480, '1'], [620, '0']];
+    d.style.transition = 'opacity 0.12s ease';
+    seq.forEach(s => setTimeout(() => {
+      if (s[1] === '0') d.style.transition = 'opacity 0.45s ease';
+      d.style.opacity = s[1];
+    }, s[0]));
+    setTimeout(() => d.remove(), 1200);
+  }
+  jsShake(boardEl);
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
+  if (boardId === 'battle-my-board') arsRenderMyDefense();
+}
+// бомба сбита щитом: долетает до зоны и в последний момент распадается, щит мигает и тает
 function animShieldBlock(boardId, r, c, shield, done) {
-  flyBomb(boardId, r, c, boardId === 'enemy-board', b => {
+  flyBomb(boardId, r, c, boardId === 'enemy-board', pt => {
     arsFlashShield(boardId, shield);
-    if (b) {
-      const m = /translate\(([\d.+-]+)px,\s*([\d.+-]+)px/.exec(b.style.transform);
-      b.remove();
-      if (m) bombShatter(+m[1] + 8, +m[2] + 8);
-    }
-    setTimeout(done, 800);
+    if (pt) bombShatter(pt.x, pt.y);
+    setTimeout(done, 950);
   });
 }
-// большая бомба: снаряды по очереди к каждой клетке
-function animBigVolley(boardId, targets, shootFn, onMine, done) {
-  let i = 0;
-  const step = () => {
-    if (!state || state.over) return;
-    if (i >= targets.length) { done(); return; }
-    const t = targets[i++];
-    flyBomb(boardId, t.r, t.c, boardId === 'enemy-board', b => {
-      if (b) b.remove();
+// большая бомба: ОДИН снаряд к центру зоны, по приземлении — серия из трёх взрывов
+function animBigStrike(boardId, centerR, centerC, targets, shootFn, onMine, done) {
+  flyBomb(boardId, centerR, centerC, boardId === 'enemy-board', () => {
+    let i = 0;
+    const step = () => {
       if (!state || state.over) return;
+      if (i >= targets.length) { done(); return; }
+      const t = targets[i++];
       const res = shootFn(t.r, t.c);
       if (res === 'hit' || res === 'miss') spawnBlast(boardId, t.r, t.c);
       if (res === 'mine') { spawnMineBlast(boardId, t.r, t.c); onMine(); return; }
       if (res === 'end') return;
-      setTimeout(step, 110);
-    });
-  };
-  step();
+      setTimeout(step, 130);
+    };
+    step();
+  });
 }
-// линия: один бегущий снаряд скользит по строке до корабля/мины
+// линия: снаряд прилетает к началу строки, взрывы бегут по клеткам до корабля/мины
 function animLineVolley(boardId, targets, shootFn, onMine, done) {
   if (!targets.length) { done(); return; }
-  flyBomb(boardId, targets[0].r, targets[0].c, boardId === 'enemy-board', b => {
+  flyBomb(boardId, targets[0].r, targets[0].c, boardId === 'enemy-board', () => {
     let i = 0;
     const step = () => {
-      if (!state || state.over) { if (b) b.remove(); return; }
+      if (!state || state.over) return;
       const t = targets[i];
       const res = shootFn(t.r, t.c);
-      if (res === 'mine') { if (b) b.remove(); spawnMineBlast(boardId, t.r, t.c); onMine(); return; }
-      if (res === 'end') { if (b) b.remove(); return; }
-      if (res === 'hit') { if (b) b.remove(); spawnBlast(boardId, t.r, t.c); setTimeout(done, 550); return; }   // стоп о корабль
+      if (res === 'mine') { spawnMineBlast(boardId, t.r, t.c); onMine(); return; }
+      if (res === 'end') return;
+      if (res === 'hit') { spawnBlast(boardId, t.r, t.c); setTimeout(done, 550); return; }   // стоп о корабль
       i++;
-      if (i >= targets.length) { if (b) b.remove(); done(); return; }
-      const p = arsCellCenter(boardId, targets[i].r, targets[i].c);
-      if (b && p) {
-        b.style.transition = 'transform 0.13s linear';
-        b.style.transform = 'translate(' + (p.x - 8) + 'px,' + (p.y - 8) + 'px) rotate(0deg)';
-      }
+      if (i >= targets.length) { done(); return; }
       setTimeout(step, 140);
     };
     step();
