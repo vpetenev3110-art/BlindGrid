@@ -907,7 +907,7 @@ function onEnemyCellClick(r, c) {
   if (state.enemy.board[r][c].shot) return;
   const res = shootEnemyCell(r, c);
   if (res === 'hit' || res === 'repeat') return;   // попал — ходи снова
-  if (res === 'mine') { state.skipPlayer = true; showSkipDim('battle-my-board'); }   // подорвался ты — пропуск у тебя
+  if (res === 'mine') { state.skipPlayer = true; showSkipDim('enemy-board'); }   // подорвался на поле противника — затемнение там
   passTurnToEnemy();
 }
 function allSunk(side) { return side.ships.every(s => s.sunk); }
@@ -1129,7 +1129,7 @@ function aiTurn() {
   const res = aiShootPlayerCell(target.r, target.c);
   if (res === 'end') return;
   if (res === 'hit') { setTimeout(aiTurn, 950); return; }
-  if (res === 'mine') { state.skipEnemy = true; showSkipDim('enemy-board'); }   // подорвался ИИ — пропуск у него
+  if (res === 'mine') { state.skipEnemy = true; showSkipDim('battle-my-board'); }   // ИИ подорвался на твоём поле — затемнение там
   passTurnToPlayer();
 }
 
@@ -1241,13 +1241,14 @@ function arsRandMine() {
 
 // --- мини-магазин на месте дока фигур ---
 // плавное превращение дока «твои фигуры» ↔ «арсенал»: FLIP по высоте + фейды контента
-function arsDockMorph(toShop) {
+function arsDockMorph(toShop, label) {
   const dock = document.getElementById('dock');
   const out = toShop ? [document.getElementById('dock-title'), document.getElementById('dock-pieces')] : [document.getElementById('dock-shop')];
   const inn = toShop ? [document.getElementById('dock-shop')] : [document.getElementById('dock-title'), document.getElementById('dock-pieces')];
   out.forEach(el => { if (el) { el.style.transition = 'opacity 0.24s ease'; el.style.opacity = '0'; } });
   setTimeout(() => {
     const h0 = dock.offsetHeight;
+    if (label) setPlayBtnLabel(label);   // лейбл меняем пока контент скрыт — без скачка
     dock.classList.toggle('shop-mode', toShop);
     inn.forEach(el => { if (el) { el.style.transition = 'none'; el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; } });
     const h1 = dock.offsetHeight;
@@ -1273,7 +1274,7 @@ function arsShopEnter() {
   arsShopPhase = true;
   if (!arsBuy) arsBuy = { shield: 0, radar: 0, big: 0, line: 0, mine: 0 };
   if (!arsDefense) arsDefense = { shields: [], mines: [] };
-  arsDockMorph(true);
+  arsDockMorph(true, 'Играть');
   const shop = document.getElementById('dock-shop');
   if (!shop._built) {
     const grid = document.getElementById('dshop-grid');
@@ -1295,7 +1296,6 @@ function arsShopEnter() {
     shop._built = true;
   }
   document.getElementById('place-board').classList.add('def-mode');
-  setPlayBtnLabel('Играть');
   arsShopSync();
   arsRenderPlaceOverlays();
 }
@@ -1337,11 +1337,10 @@ function arsShopExit(refund) {
     arsBuy = null; arsDefense = null;
   }
   arsShopPhase = false;
-  arsDockMorph(false);
+  arsDockMorph(false, lastMode === 'classic' ? 'Далее' : 'Играть');
   document.getElementById('place-board').classList.remove('def-mode');
   const pb = document.getElementById('place-board');
   pb.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
-  if (lastMode === 'classic') setPlayBtnLabel('Далее'); else setPlayBtnLabel('Играть');
 }
 function arsBuyItem(k) {
   const d = ARS_DEF[k];
@@ -1371,7 +1370,7 @@ function arsShopSync() {
 function arsRenderPlaceOverlays() {
   if (!arsDefense) return;
   const boardEl = document.getElementById('place-board');
-  boardEl.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
+  boardEl.querySelectorAll('.ars-band:not(.flash), .ars-mine').forEach(e => e.remove());   // flash-полосу не трогаем
   arsDefense.shields.forEach((rTop, idx) => {
     const rc = arsBandRect(boardEl, rTop); if (!rc) return;
     const d = document.createElement('div');
@@ -1468,7 +1467,7 @@ function arsBandRect(boardEl, rTop) {
 }
 function arsRenderDefOverlays(boardId, shieldTops, mines) {
   const boardEl = document.getElementById(boardId);
-  boardEl.querySelectorAll('.ars-band, .ars-mine').forEach(e => e.remove());
+  boardEl.querySelectorAll('.ars-band:not(.flash), .ars-mine').forEach(e => e.remove());   // flash-полосу не трогаем
   (shieldTops || []).forEach(s => {
     const rTop = (typeof s === 'number') ? s : s.rTop;
     if (typeof s === 'object' && s.used) return;   // потраченный щит исчезает
@@ -1701,7 +1700,7 @@ function arsPlayerUse(r, c) {
       if (!state.enemy.board[rr][cc].shot) pool.push({ r: rr, c: cc });
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     animBigStrike('enemy-board', r0 + 1, c0 + 1, pool.slice(0, 3), shootEnemyCell,
-      () => { state.skipPlayer = true; showSkipDim('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
+      () => { state.skipPlayer = true; showSkipDim('enemy-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
       () => { if (!state.over) passTurnToEnemy(); });
     return;
   }
@@ -1712,7 +1711,7 @@ function arsPlayerUse(r, c) {
     const targets = [];
     for (let cc = 0; cc < SIZE; cc++) if (!state.enemy.board[r][cc].shot) targets.push({ r, c: cc });
     animLineVolley('enemy-board', targets, shootEnemyCell,
-      () => { state.skipPlayer = true; showSkipDim('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
+      () => { state.skipPlayer = true; showSkipDim('enemy-board'); setTimeout(() => { if (!state.over) passTurnToEnemy(); }, 700); },
       () => { if (!state.over) passTurnToEnemy(); });
     return;
   }
@@ -1762,7 +1761,7 @@ function aiUseBig() {
     if (!state.player.board[rr][cc].shot) pool.push({ r: rr, c: cc });
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   animBigStrike('battle-my-board', z.r0 + 1, z.c0 + 1, pool.slice(0, 3), aiShootPlayerCell,
-    () => { state.skipEnemy = true; showSkipDim('enemy-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
+    () => { state.skipEnemy = true; showSkipDim('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
     () => { if (!state.over) passTurnToPlayer(); });
 }
 function aiUseLine() {
@@ -1777,7 +1776,7 @@ function aiUseLine() {
   const targets = [];
   for (let c = 0; c < SIZE; c++) if (!state.player.board[bestR][c].shot) targets.push({ r: bestR, c });
   animLineVolley('battle-my-board', targets, aiShootPlayerCell,
-    () => { state.skipEnemy = true; showSkipDim('enemy-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
+    () => { state.skipEnemy = true; showSkipDim('battle-my-board'); setTimeout(() => { if (!state.over) passTurnToPlayer(); }, 700); },
     () => { if (!state.over) passTurnToPlayer(); });
 }
 function arsAiAutoDefense(counts) {
@@ -1945,39 +1944,37 @@ function flyBombSplit(boardId, centerR, centerC, targets, fromRight, onLand) {
     if (!targets.length) onLand();
   }, T1 + 10);
 }
-// сработавшая защита: вспыхивает, мигает, затем её блоки распадаются справа налево
+// сработавшая защита: единая полоса мигает, затем плавно растворяется справа налево
 function arsFlashShield(boardId, shield) {
   shield.used = true;
   const boardEl = document.getElementById(boardId);
   const rc = arsBandRect(boardEl, shield.rTop);
   if (rc) {
     const host = fxLayer(boardId) || boardEl;
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:absolute;left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px;pointer-events:none;opacity:1;z-index:7';
-    const segW = rc.width / SIZE;
-    for (let i = 0; i < SIZE; i++) {
-      const s = document.createElement('div');
-      s.className = 'ars-band-seg';
-      s.style.cssText = 'left:' + (i * segW + 1).toFixed(1) + 'px;top:0;width:' + (segW - 2).toFixed(1) + 'px;height:' + rc.height + 'px;opacity:1';
-      wrap.appendChild(s);
-    }
-    host.appendChild(wrap);
-    // мигание всей полосы
-    wrap.style.transition = 'opacity 0.1s ease';
-    [[90, '0.25'], [200, '1'], [320, '0.25'], [440, '1']].forEach(b => setTimeout(() => { wrap.style.opacity = b[1]; }, b[0]));
-    // распад: блоки тают справа налево
+    const clip = document.createElement('div');   // обрезающая рамка: её ширина тает — полоса исчезает справа налево
+    clip.style.cssText = 'position:absolute;left:' + rc.left + 'px;top:' + rc.top + 'px;width:' + rc.width + 'px;height:' + rc.height + 'px;overflow:hidden;pointer-events:none;z-index:7;opacity:1';
+    const band = document.createElement('div');
+    band.className = 'ars-band flash';
+    band.style.cssText = 'left:0;top:0;width:' + rc.width + 'px;height:' + rc.height + 'px;opacity:1';
+    clip.appendChild(band);
+    host.appendChild(clip);
+    // мигание целой полосы
+    band.style.transition = 'opacity 0.1s ease';
+    [[90, '0.25'], [200, '1'], [320, '0.25'], [440, '1']].forEach(b => setTimeout(() => { band.style.opacity = b[1]; }, b[0]));
+    // растворение: правый край съедается, полоса тает
     setTimeout(() => {
-      const segs = wrap.children;
-      for (let i = 0; i < segs.length; i++) {
-        const el = segs[i];
-        setTimeout(() => {
-          el.style.transition = 'transform 0.34s cubic-bezier(.4,0,.7,.4), opacity 0.34s ease';
-          el.style.transform = 'translateY(9px) scale(0.5)';
-          el.style.opacity = '0';
-        }, (segs.length - 1 - i) * 48);
+      clip.style.transition = 'width 0.6s cubic-bezier(.45,.05,.55,.95), opacity 0.6s ease';
+      clip.style.width = '0px';
+      clip.style.opacity = '0.25';
+      // несколько осколков по ходу растворения
+      const bb = boardEl.getBoundingClientRect();
+      if (bb.width) {
+        [0.85, 0.55, 0.25].forEach((f, i) => setTimeout(() => {
+          bombShatter(bb.left + rc.left + rc.width * f, bb.top + rc.top + rc.height / 2, 'rgba(255,71,87,0.9)');
+        }, i * 170));
       }
-    }, 560);
-    setTimeout(() => wrap.remove(), 560 + SIZE * 48 + 450);
+    }, 580);
+    setTimeout(() => clip.remove(), 1350);
   }
   jsShake(boardEl);
   try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning'); } catch (e) {}
